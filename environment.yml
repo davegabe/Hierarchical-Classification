@@ -1,0 +1,6 @@
+name: hc-cv
+dependencies:
+  - python=3.11
+  - numpy
+  - matplotlib
+  - pytorch
