@@ -1,11 +1,18 @@
-from modules.models import VGG_19
+from modules.models import VGG16
 from modules.dataset import HierarchicalImageNet
 import torch
+from config import *
 
 # Load the dataset
-dataset = HierarchicalImageNet()
+dataset = HierarchicalImageNet("train")
 
 # Load the model
-model = VGG_19()
+model = VGG16(n_classes=dataset.n_classes)
 
-# ...
+# Define the loss and optimizer
+optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATE, momentum=0.9)
+loss = torch.nn.CrossEntropyLoss()
+
+# Train the model
+for epoch in range(NUM_EPOCHS):
+    pass
