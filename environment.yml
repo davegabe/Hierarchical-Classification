@@ -4,3 +4,6 @@ dependencies:
   - numpy
   - matplotlib
   - pytorch
+  - torchvision
+  - pandas
+  - nltk
