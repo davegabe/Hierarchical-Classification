@@ -15,7 +15,7 @@ class HierarchicalImageNet(Dataset):
     def __init__(self, split: str, root: str = "./dataset/"):
         self.root = root
         self.split = split
-        self.max_hierarchy_depth = 7
+        self.max_hierarchy_depth = None
 
         # Load the ImageNet dataset
         self.imagenet, self.classes = self.get_imagenet()
@@ -23,7 +23,7 @@ class HierarchicalImageNet(Dataset):
         print(f"Number of classes: {self.n_classes}")
         # Load the hierarchy
         self.hierarchy = self.get_hierarchy()
-        print(self.hierarchy.iloc[:, 0].value_counts())
+        print(self.hierarchy.head())
 
     def __len__(self):
         return len(self.imagenet)
@@ -145,11 +145,24 @@ class HierarchicalImageNet(Dataset):
                 depth += 1
             if depth > max_depth:
                 max_depth = depth
+        self.max_hierarchy_depth = max_depth
         print(f"Max depth: {max_depth}")
 
         # Create the hierarchy dataframe starting from the root
-        all_list = []
-        # TODO: Create the hierarchy dataframe starting from the root
+        all_list = [[] for _ in range(self.n_classes)]
+        for i, synset in enumerate(synsets):
+            # Get the hierarchy of the synset
+            name = synset.name()
+            depth = 0
+            while name != root:
+                all_list[i].append(name)
+                name = nodes[name]['parent']
+                depth += 1
+            # Add "-" to the hierarchy to make it of the same length
+            for j in range(depth, max_depth):
+                all_list[i].insert(0, "-")
+            # Reverse the hierarchy
+            all_list[i].reverse()
 
         # Create the dataframe
         df = pd.DataFrame(all_list)
