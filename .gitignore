@@ -5,3 +5,4 @@ modules/__pycache__
 *.pyc
 .vscode
 settings.json
+.venv/
