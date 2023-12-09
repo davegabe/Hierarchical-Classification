@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 import os
 import torch
+import tqdm
 
 nltk.download('wordnet')
 
@@ -16,6 +17,7 @@ class HierarchicalImageNet(Dataset):
         self.root = root
         self.split = split
         self.max_hierarchy_depth = None
+        self.desired_hierarchy_depth = 4
 
         # Load the ImageNet dataset
         self.imagenet, self.classes = self.get_imagenet()
@@ -62,6 +64,24 @@ class HierarchicalImageNet(Dataset):
             images = os.listdir(os.path.join(split_path, class_name))
             imagenet += images
         return imagenet, classes
+    
+    def get_max_depth(self, root, nodes, synsets) -> int:
+        """
+        Returns the maximum depth of the hierarchy
+
+        Returns:
+            max_depth (int): The maximum depth of the hierarchy
+        """
+        max_depth = 0
+        for synset in synsets:
+            depth = 0
+            name = synset.name()
+            while name != root:
+                name = nodes[name]['parent']
+                depth += 1
+            if depth > max_depth:
+                max_depth = depth
+        return max_depth
 
     def get_hierarchy(self) -> pd.DataFrame:
         """
@@ -103,50 +123,38 @@ class HierarchicalImageNet(Dataset):
                 # Set the synset to the hypernym
                 synset = hypernym
 
-        # Collapse nodes with only one child into their child
-        while True:
-            changed = False
-            # For each leaf node
-            for synset in synsets:
-                parent = nodes[synset.name()]['parent']
-                if parent is None:
-                    raise ValueError(f"Node {synset.name()} has no parent")
-                # If the node has only one child
-                if len(nodes[parent]['children']) == 1:
-                    # The only child of the parent is synset.name()
-                    # Remove the parent from the tree
-                    grandparent = nodes[parent]['parent']
-                    nodes[grandparent]['children'].remove(parent)
-                    nodes[grandparent]['children'].append(synset.name())
-                    nodes[synset.name()]['parent'] = grandparent
-                    # Remove the parent from the list of nodes
-                    del nodes[parent]
-                    changed = True
-            if not changed:
-                break
-
         # Find the root of the tree
         root = None
         for name, node in nodes.items():
             if node['parent'] is None:
                 root = name
                 break
-        # Find the first node with multiple children (common root)
-        while len(nodes[root]['children']) == 1:
-            root = nodes[root]['children'][0]
+        # # Find the first node with multiple children (common root)
+        # while len(nodes[root]['children']) == 1:
+        #     root = nodes[root]['children'][0]
 
-        # Compute the depth of each node
-        max_depth = 0
-        for synset in synsets:
-            depth = 0
-            name = synset.name()
-            while name != root:
-                name = nodes[name]['parent']
-                depth += 1
-            if depth > max_depth:
-                max_depth = depth
-        self.max_hierarchy_depth = max_depth
-        print(f"Max depth: {max_depth}")
+        self.max_hierarchy_depth = self.get_max_depth(root, nodes, synsets)
+        print(f"Max depth: {self.max_hierarchy_depth}")
+
+        # Collapse nodes with #children == min_num_children until the desired depth is reached
+        while self.max_hierarchy_depth > self.desired_hierarchy_depth:
+            nodes_copy = nodes.copy()
+            min_children = self.min_number_of_children(nodes, synsets)
+            for name, node in nodes_copy.items():
+                if len(node['children']) == min_children and len(node['children']) != 0:
+                    # Update the children of the parent
+                    if node['parent'] is None:
+                        continue
+                    parent = node['parent']
+                    children = node['children']
+                    nodes[parent]['children'].remove(name)
+                    nodes[parent]['children'] += children
+                    # Update the parent of the children
+                    for child in children:
+                        nodes[child]['parent'] = parent
+                    # Delete the node
+                    del nodes[name]
+            self.max_hierarchy_depth = self.get_max_depth(root, nodes, synsets)
 
         # Create the hierarchy dataframe starting from the root
         all_list = [[] for _ in range(self.n_classes)]
@@ -159,7 +167,7 @@ class HierarchicalImageNet(Dataset):
                 name = nodes[name]['parent']
                 depth += 1
             # Add "-" to the hierarchy to make it of the same length
-            for j in range(depth, max_depth):
+            for j in range(depth, self.max_hierarchy_depth):
                 all_list[i].insert(0, "-")
             # Reverse the hierarchy
             all_list[i].reverse()
@@ -167,3 +175,22 @@ class HierarchicalImageNet(Dataset):
         # Create the dataframe
         df = pd.DataFrame(all_list)
         return df
+
+    def min_number_of_children(self, nodes, synsets) -> int:
+        """
+        Returns the minimum number of children of a node in the hierarchy, skips nodes with no children
+
+        Returns:
+            min_num_children (int): The minimum number of children of a node in the hierarchy
+        """
+        childrened_nodes = [name for name, node in nodes.items() if len(node['children']) != 0]
+        min_num_children = np.inf
+        for name in childrened_nodes:
+            if nodes[name]['parent'] is None:
+                continue
+            num_children = len(nodes[name]['children'])
+            if num_children < min_num_children:
+                min_num_children = num_children
+        return min_num_children
+    
+
