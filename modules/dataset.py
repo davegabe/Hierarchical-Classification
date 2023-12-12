@@ -26,8 +26,10 @@ class HierarchicalImageNet(Dataset):
         self.imagenet, self.classes = self.get_imagenet()
         self.n_classes = len(self.classes)
         print(f"Number of classes: {self.n_classes}")
+        
         # Load the hierarchy
         self.hierarchy = self.get_hierarchy()
+        # print(self.hierarchy.head())
 
         # save csv
         self.hierarchy.to_csv(f"{self.split}_hierarchy.csv", index=False, header=False)
@@ -38,12 +40,11 @@ class HierarchicalImageNet(Dataset):
         return len(self.imagenet)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
-        image = self.imagenet[idx]
-        class_name = image.split('_')[0]
+        image, class_name = self.imagenet[idx]
         class_id = self.classes.index(class_name)
         # Load the image
         image_path = os.path.join(self.root, self.split, class_name, image)
-        image = Image.open(image_path)
+        image = Image.open(image_path, mode="r").convert("RGB")
         # Transform the image
         transform = transforms.Compose([
             transforms.Resize(IMAGE_SIZE),
@@ -75,7 +76,7 @@ class HierarchicalImageNet(Dataset):
                 class_name: i for i, class_name in enumerate(classes)}
         return class_to_index
 
-    def get_imagenet(self) -> tuple[list[str], list[str]]:
+    def get_imagenet(self) -> tuple[list[tuple[str, str]], list[str]]:
         """
         Returns the ImageNet dataset as a dictionary
 
@@ -83,18 +84,19 @@ class HierarchicalImageNet(Dataset):
             root (str): The root directory of the dataset
 
         Returns:
-            imagenet (dict): A dictionary containing the ImageNet dataset
+            imagenet (list[tuple[str, str]]): A list containing the images and their class
+            classes (list[str]): A list containing the classes of the dataset
         """
         # Load the ImageNet dataset
         split_path = os.path.join(self.root, self.split)
-        classes = []
         imagenet = []
+        classes = os.listdir(split_path)
         # For each class
-        for class_name in os.listdir(split_path):
-            classes.append(class_name)
+        for class_name in classes:
             # Add the path of each image to the list
-            images = os.listdir(os.path.join(split_path, class_name))
-            imagenet += images
+            path = os.path.join(split_path, class_name)
+            images = os.listdir(path)
+            imagenet += [(image, class_name) for image in images]
         return imagenet, classes
 
     def get_max_depth(self, root: str, nodes: dict, synsets: list) -> int:
