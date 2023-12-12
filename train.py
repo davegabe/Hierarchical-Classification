@@ -5,6 +5,7 @@ from config import *
 
 # Load the dataset
 dataset = HierarchicalImageNet("train")
+dataloader = torch.utils.data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
 
 # Load the model
 model = VGG16(n_classes=dataset.n_classes)

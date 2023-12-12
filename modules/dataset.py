@@ -7,7 +7,9 @@ import pandas as pd
 import numpy as np
 import os
 import torch
-import tqdm
+import matplotlib.pyplot as plt
+from PIL import Image
+from config import *
 
 nltk.download('wordnet')
 
@@ -25,7 +27,9 @@ class HierarchicalImageNet(Dataset):
         print(f"Number of classes: {self.n_classes}")
         # Load the hierarchy
         self.hierarchy = self.get_hierarchy()
-        print(self.hierarchy.head())
+
+        # Dict class -> index for each depth
+        self.depth_class_to_index = self.get_depth_class_to_index()
 
     def __len__(self):
         return len(self.imagenet)
@@ -36,12 +40,37 @@ class HierarchicalImageNet(Dataset):
         class_id = self.classes.index(class_name)
         # Load the image
         image_path = os.path.join(self.root, self.split, class_name, image)
-        sample = transforms.ToTensor()(image_path)
+        image = Image.open(image_path)
+        # Transform the image
+        transform = transforms.Compose([
+            transforms.Resize(IMAGE_SIZE),
+            transforms.ToTensor(),
+        ])
+        sample = transform(image)
         # Get the hierarchy of the class
         hierarchy = self.hierarchy.iloc[class_id, :]
-        # TODO: Convert the hierarchy to one-hot encoding
+        hierarchy = [
+            self.depth_class_to_index[i][hierarchy[i]]
+            for i in range(self.desired_hierarchy_depth)
+        ]
         hierarchy_one_hot = torch.tensor(hierarchy)
         return sample, hierarchy_one_hot
+
+    def get_depth_class_to_index(self) -> dict[int, dict[str, int]]:
+        """
+        For each depth create a class to index mapping.
+
+        Returns:
+            class_to_index (dict): A dictionary containing the class to index mapping
+        """
+        class_to_index = {}
+        for depth in range(self.desired_hierarchy_depth):
+            # Get the classes at the current depth
+            classes = self.hierarchy.iloc[:, depth].unique()
+            # Create the mapping
+            class_to_index[depth] = {
+                class_name: i for i, class_name in enumerate(classes)}
+        return class_to_index
 
     def get_imagenet(self) -> tuple[list[str], list[str]]:
         """
@@ -64,7 +93,7 @@ class HierarchicalImageNet(Dataset):
             images = os.listdir(os.path.join(split_path, class_name))
             imagenet += images
         return imagenet, classes
-    
+
     def get_max_depth(self, root, nodes, synsets) -> int:
         """
         Returns the maximum depth of the hierarchy
@@ -183,7 +212,8 @@ class HierarchicalImageNet(Dataset):
         Returns:
             min_num_children (int): The minimum number of children of a node in the hierarchy
         """
-        childrened_nodes = [name for name, node in nodes.items() if len(node['children']) != 0]
+        childrened_nodes = [name for name,
+                            node in nodes.items() if len(node['children']) != 0]
         min_num_children = np.inf
         for name in childrened_nodes:
             if nodes[name]['parent'] is None:
@@ -192,5 +222,32 @@ class HierarchicalImageNet(Dataset):
             if num_children < min_num_children:
                 min_num_children = num_children
         return min_num_children
-    
 
+
+if __name__ == "__main__":
+    # Load the dataset
+    dataset = HierarchicalImageNet("train")
+    dataloader = torch.utils.data.DataLoader(
+        dataset, batch_size=BATCH_SIZE, shuffle=True)
+    
+    # Print dataset info
+    depth_class_to_index = dataset.depth_class_to_index
+    # Format the dictionary on multiple lines
+    depth_class_to_index_str = "{\n"
+    for depth, class_to_index in depth_class_to_index.items():
+        depth_class_to_index_str += f"    {depth}: {class_to_index},\n\n"
+    depth_class_to_index_str += "}"
+    print(f"Depth class to index: {depth_class_to_index_str}")
+    
+    # Load one batch and show in matplotlib
+    images, hierarchies = next(iter(dataloader))
+    # For each sample in the batch
+    for i in range(BATCH_SIZE):
+        # Get the class name
+        hierarchy = hierarchies[i]
+        # Get the image
+        image = images[i].permute(1, 2, 0)
+        # Show the image
+        plt.imshow(image)
+        plt.title(hierarchy)
+        plt.show()
