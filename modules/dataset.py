@@ -12,7 +12,7 @@ from PIL import Image
 from config import *
 
 nltk.download('wordnet')
-blacklist = ['abstraction.n.06']
+blacklist = []
 
 
 class HierarchicalImageNet(Dataset):
@@ -135,16 +135,11 @@ class HierarchicalImageNet(Dataset):
             hierarchy (dict): A dictionary containing the hierarchy of the dataset
         """
         # Read synset ids for classes
-        map_fname = os.path.join(self.root, "LOC_synset_mapping.txt")
         synsets = []
-        with open(map_fname, 'r') as f:
-            for line in f:
-                synset_id_s = line.split()[0]  # e.g. n01440764
-                if synset_id_s not in self.classes:
-                    continue
-                synset_id = int(synset_id_s[1:])  # e.g. 01440764
-                synset: Synset = wn.synset_from_pos_and_offset('n', synset_id)
-                synsets.append(synset)
+        for synset_id_s in self.classes:
+            synset_id = int(synset_id_s[1:])  # e.g. 01440764
+            synset: Synset = wn.synset_from_pos_and_offset('n', synset_id)
+            synsets.append(synset)
 
         # Initialize the nodes
         nodes = {}
@@ -167,11 +162,11 @@ class HierarchicalImageNet(Dataset):
                 # Set the synset to the hypernym
                 synset = hypernym
 
-        ab_children = nodes['physical_entity.n.01']['children']
-        nodes['entity.n.01']['children'] += ab_children
-        for child in ab_children:
-            nodes[child]['parent'] = 'entity.n.01'
-        del nodes['physical_entity.n.01']
+        # ab_children = nodes['physical_entity.n.01']['children']
+        # nodes['entity.n.01']['children'] += ab_children
+        # for child in ab_children:
+        #     nodes[child]['parent'] = 'entity.n.01'
+        # del nodes['physical_entity.n.01']
 
         # Find the root of the tree
         root = None
@@ -179,9 +174,9 @@ class HierarchicalImageNet(Dataset):
             if node['parent'] is None:
                 root = name
                 print("test", name)
-        # Find the first node with multiple children (common root)
-        while len(nodes[root]['children']) == 1:
-            root = nodes[root]['children'][0]
+        # # Find the first node with multiple children (common root)
+        # while len(nodes[root]['children']) == 1:
+        #     root = nodes[root]['children'][0]
 
         print(f"New root: ",root)
         self.max_hierarchy_depth = self.get_max_depth(root, nodes, synsets)
