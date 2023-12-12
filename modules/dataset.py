@@ -12,6 +12,7 @@ from PIL import Image
 from config import *
 
 nltk.download('wordnet')
+blacklist = ['abstraction.n.06']
 
 
 class HierarchicalImageNet(Dataset):
@@ -19,7 +20,7 @@ class HierarchicalImageNet(Dataset):
         self.root = root
         self.split = split
         self.max_hierarchy_depth = None
-        self.desired_hierarchy_depth = 4
+        self.desired_hierarchy_depth = 3
 
         # Load the ImageNet dataset
         self.imagenet, self.classes = self.get_imagenet()
@@ -28,6 +29,8 @@ class HierarchicalImageNet(Dataset):
         # Load the hierarchy
         self.hierarchy = self.get_hierarchy()
 
+        # save csv
+        self.hierarchy.to_csv(f"{self.split}_hierarchy.csv", index=False, header=False)
         # Dict class -> index for each depth
         self.depth_class_to_index = self.get_depth_class_to_index()
 
@@ -94,9 +97,14 @@ class HierarchicalImageNet(Dataset):
             imagenet += images
         return imagenet, classes
 
-    def get_max_depth(self, root, nodes, synsets) -> int:
+    def get_max_depth(self, root: str, nodes: dict, synsets: list) -> int:
         """
         Returns the maximum depth of the hierarchy
+
+        Args:
+            root (str): The name of the root of the hierarchy
+            nodes (dict): A dictionary containing the nodes of the hierarchy
+            synsets (list): A list containing the synsets of the dataset
 
         Returns:
             max_depth (int): The maximum depth of the hierarchy
@@ -105,10 +113,17 @@ class HierarchicalImageNet(Dataset):
         for synset in synsets:
             depth = 0
             name = synset.name()
-            while name != root:
+            found_root = False
+            # Get the parent of the synset
+            while name != None:
+                # If I found the root
+                if name == root:
+                    found_root = True
+                    break
                 name = nodes[name]['parent']
                 depth += 1
-            if depth > max_depth:
+            # If I found the root and the depth is greater than the current max depth
+            if depth > max_depth and found_root:
                 max_depth = depth
         return max_depth
 
@@ -152,27 +167,37 @@ class HierarchicalImageNet(Dataset):
                 # Set the synset to the hypernym
                 synset = hypernym
 
+        ab_children = nodes['physical_entity.n.01']['children']
+        nodes['entity.n.01']['children'] += ab_children
+        for child in ab_children:
+            nodes[child]['parent'] = 'entity.n.01'
+        del nodes['physical_entity.n.01']
+
         # Find the root of the tree
         root = None
         for name, node in nodes.items():
             if node['parent'] is None:
                 root = name
-                break
-        # # Find the first node with multiple children (common root)
-        # while len(nodes[root]['children']) == 1:
-        #     root = nodes[root]['children'][0]
+                print("test", name)
+        # Find the first node with multiple children (common root)
+        while len(nodes[root]['children']) == 1:
+            root = nodes[root]['children'][0]
 
+        print(f"New root: ",root)
         self.max_hierarchy_depth = self.get_max_depth(root, nodes, synsets)
         print(f"Max depth: {self.max_hierarchy_depth}")
 
         # Collapse nodes with #children == min_num_children until the desired depth is reached
+        num_roots = 0
         while self.max_hierarchy_depth > self.desired_hierarchy_depth:
             nodes_copy = nodes.copy()
             min_children = self.min_number_of_children(nodes, synsets)
             for name, node in nodes_copy.items():
                 if len(node['children']) == min_children and len(node['children']) != 0:
-                    # Update the children of the parent
-                    if node['parent'] is None:
+                    # if self.get_max_depth(name, nodes, synsets) <= self.desired_hierarchy_depth:
+                    #     continue
+                    if node['parent'] == None:
+                        num_roots += 1
                         continue
                     parent = node['parent']
                     children = node['children']
@@ -184,6 +209,7 @@ class HierarchicalImageNet(Dataset):
                     # Delete the node
                     del nodes[name]
             self.max_hierarchy_depth = self.get_max_depth(root, nodes, synsets)
+        print(f"Number of roots: {num_roots}")
 
         # Create the hierarchy dataframe starting from the root
         all_list = [[] for _ in range(self.n_classes)]
