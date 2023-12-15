@@ -9,10 +9,9 @@ import os
 import torch
 import matplotlib.pyplot as plt
 from PIL import Image
-# from config import *
+from config import *
 
 nltk.download('wordnet')
-blacklist = []
 
 
 class HierarchicalImageNet(Dataset):
@@ -21,6 +20,7 @@ class HierarchicalImageNet(Dataset):
         self.split = split
         self.max_hierarchy_depth = None
         self.desired_hierarchy_depth = 5
+        self.real_hierarchy_depth = self.desired_hierarchy_depth - 2
         self.whitelist = []
         # Load the ImageNet dataset
         self.imagenet, self.classes = self.get_imagenet()
@@ -29,11 +29,10 @@ class HierarchicalImageNet(Dataset):
         
         # Load the hierarchy
         self.hierarchy = self.get_hierarchy()
-        # Get the number of classes for each depth
-        self.hierarchy_size = [
-            len(self.hierarchy.iloc[:, i].unique())
-            for i in range(self.desired_hierarchy_depth)
-        ]
+        # Filter the ImageNet dataset
+        self.get_classes()
+        self.filter_imagenet()
+        
 
         # save csv
         # sort by alphabetical order
@@ -45,8 +44,15 @@ class HierarchicalImageNet(Dataset):
         self.hierarchy = self.hierarchy.drop([3, 4], axis=1)
         # remove duplicates
         self.hierarchy = self.hierarchy.drop_duplicates()
-        self.hierarchy.to_csv(f"{self.split}_hierarchy.csv", index=False, header=False)
+        #self.hierarchy.to_csv(f"{self.split}_hierarchy.csv", index=False, header=False)
         # Dict class -> index for each depth
+
+        # Get the number of classes for each depth
+        self.hierarchy_size = [
+            len(self.hierarchy.iloc[:, i].unique())
+            for i in range(self.real_hierarchy_depth)
+        ]
+
         self.depth_class_to_index = self.get_depth_class_to_index()
 
     def __len__(self):
@@ -65,17 +71,17 @@ class HierarchicalImageNet(Dataset):
         ])
         sample = transform(image)
 
-        hierarchy = self.hierarchy.iloc[class_id, :]  
+        hierarchy = self.hierarchy.iloc[class_id, :]
         # Get the hierarchy index of the class
         hierarchy = [
             self.depth_class_to_index[i][hierarchy[i]]
-            for i in range(self.desired_hierarchy_depth)
+            for i in range(self.real_hierarchy_depth)
         ]
 
         # Create the one hot encoding of the hierarchy
         hierarchy_one_hot = [
             torch.zeros(self.hierarchy_size[i])
-            for i in range(self.desired_hierarchy_depth)
+            for i in range(self.real_hierarchy_depth)
         ]
         # Set the one hot of the class to 1
         for i, class_id in enumerate(hierarchy):
@@ -93,7 +99,7 @@ class HierarchicalImageNet(Dataset):
             class_to_index (dict): A dictionary containing the class to index mapping
         """
         class_to_index = {}
-        for depth in range(self.desired_hierarchy_depth):
+        for depth in range(self.real_hierarchy_depth):
             # Get the classes at the current depth
             classes = self.hierarchy.iloc[:, depth].unique()
             # Create the mapping
@@ -123,6 +129,33 @@ class HierarchicalImageNet(Dataset):
             images = os.listdir(path)
             imagenet += [(image, class_name) for image in images]
         return imagenet, classes
+
+    def get_classes(self):
+        """
+        Create a list containing the classes of the dataset based on the hierarchy.
+        """
+        classes = []
+        name_classes = self.hierarchy.iloc[:, self.real_hierarchy_depth-1].unique()
+        if LIMIT_CLASSES > 0:
+            name_classes = name_classes[:LIMIT_CLASSES]
+        for i, class_name in enumerate(name_classes):
+            if class_name == "-":
+                continue
+            synset = wn.synset(class_name)
+            pos = synset.pos() # n
+            offset = synset.offset() # 8 digits
+            classes.append(f"{pos}{offset:08d}")
+        self.classes = classes
+
+    def filter_imagenet(self):
+        """
+        Remove the images from self.imagenet not in self.classes
+        """
+        new_imagenet = []
+        for i, (image, class_name) in enumerate(self.imagenet):
+            if class_name in self.classes:
+                new_imagenet.append((image, class_name))
+        self.imagenet = new_imagenet
 
     def get_max_depth(self, root: str, nodes: dict, synsets: list) -> int:
         """
@@ -218,6 +251,8 @@ class HierarchicalImageNet(Dataset):
                 parent = wn.synset(child).hypernyms()[0].name()
                 synsets.remove(wn.synset(child))
                 synsets.append(wn.synset(parent))
+
+
 
 
 

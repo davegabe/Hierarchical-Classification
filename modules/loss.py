@@ -9,7 +9,7 @@ class HierarchicalLoss(nn.Module):
         self.previous_size = [sum(hierarchy_size[:i]) for i in range(len(hierarchy_size))]
         hierarchy_depth = len(hierarchy_size)
         self.weights = [1 for _ in range(hierarchy_depth)]
-
+        
     def forward(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
         """
         Compute the loss for each hierarchy level and return the weighted sum of losses.

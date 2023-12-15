@@ -75,7 +75,7 @@ class MaxPool2dBlock(nn.Module):
 
 
 class VGG16(nn.Module):
-    def __init__(self, n_classes: list[int], n_branches: int = 1):
+    def __init__(self, n_classes: list[int], n_branches: int = 1, device: str = "cpu"):
         """
         VGG16 model with n branches and coarse classifiers.
 
@@ -131,7 +131,7 @@ class VGG16(nn.Module):
             nn.Linear(4096, n_branches),
             nn.Sigmoid()
         )
-        self.branches = [Branch() for _ in range(n_branches)]
+        self.branches = [Branch().to(device) for _ in range(n_branches)]
 
         # Fine classifier
         self.fine_size = 512 * 7 * 7
@@ -159,25 +159,22 @@ class VGG16(nn.Module):
         x = self.block_2(x)
         c2 = self.coarse_2(x) # Shape: (batch_size, n_classes[1])
         x = self.block_3(x)
-
+         
         # Select best branch by coarse prediction
         coarses = torch.cat([c1, c2], dim=1) # Shape: (batch_size, n_classes[0] + n_classes[1])
         b_att: torch.Tensor = self.branch_selector(coarses) # Shape: (batch_size, n_branches)
         max_indices = torch.argmax(b_att, dim=1) # Shape: (batch_size,)
         
         # Apply branches
-        batch_x = [self.branches[max_indices[i]](x[i].unsqueeze(0)) for i in range(BATCH_SIZE)]
+        batch_x = [self.branches[max_indices[i]](x[i].unsqueeze(0)) for i in range(x.shape[0])]
         x = torch.cat(batch_x, dim=0)
 
         # Concatenate branches
         x = self.avgpool(x)
 
         # Flatten and apply classifier
-        logits = self.fine(x)
-        fine = F.softmax(logits, dim=1)
+        fine = self.fine(x)
 
         # Concatenate coarse and fine predictions
-        c1 = F.softmax(c1, dim=1)
-        c2 = F.softmax(c2, dim=1)
         probas = torch.cat([c1, c2, fine], dim=1)
         return probas
