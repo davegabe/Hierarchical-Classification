@@ -9,7 +9,7 @@ import os
 import torch
 import matplotlib.pyplot as plt
 from PIL import Image
-from config import *
+# from config import *
 
 nltk.download('wordnet')
 blacklist = []
@@ -20,8 +20,8 @@ class HierarchicalImageNet(Dataset):
         self.root = root
         self.split = split
         self.max_hierarchy_depth = None
-        self.desired_hierarchy_depth = 3
-
+        self.desired_hierarchy_depth = 5
+        self.whitelist = []
         # Load the ImageNet dataset
         self.imagenet, self.classes = self.get_imagenet()
         self.n_classes = len(self.classes)
@@ -30,6 +30,15 @@ class HierarchicalImageNet(Dataset):
         self.hierarchy = self.get_hierarchy()
 
         # save csv
+        # sort by alphabetical order
+        self.hierarchy = self.hierarchy.sort_values(by=[0, 1, 2, 3, 4])
+        # filter out entries that have '-' in the second and third column
+        self.hierarchy = self.hierarchy[~self.hierarchy[1].str.contains('-')]
+        self.hierarchy = self.hierarchy[~self.hierarchy[2].str.contains('-')]
+        # remove column 3,4
+        self.hierarchy = self.hierarchy.drop([3, 4], axis=1)
+        # remove duplicates
+        self.hierarchy = self.hierarchy.drop_duplicates()
         self.hierarchy.to_csv(f"{self.split}_hierarchy.csv", index=False, header=False)
         # Dict class -> index for each depth
         self.depth_class_to_index = self.get_depth_class_to_index()
@@ -178,34 +187,66 @@ class HierarchicalImageNet(Dataset):
         # while len(nodes[root]['children']) == 1:
         #     root = nodes[root]['children'][0]
 
-        print(f"New root: ",root)
-        self.max_hierarchy_depth = self.get_max_depth(root, nodes, synsets)
-        print(f"Max depth: {self.max_hierarchy_depth}")
+        # Remove first three levels from root
+        with open('blacklist.txt', 'r') as f:
+            blacklist = f.read().splitlines()
+
+        with open('whitelist.txt', 'r') as f:
+            self.whitelist = f.read().splitlines()
+
+        for child in blacklist:
+            self.prune_node(child, nodes)
+            if wn.synset(child) in synsets:
+                parent = wn.synset(child).hypernyms()[0].name()
+                synsets.remove(wn.synset(child))
+                synsets.append(wn.synset(parent))
+
+
 
         # Collapse nodes with #children == min_num_children until the desired depth is reached
-        num_roots = 0
-        while self.max_hierarchy_depth > self.desired_hierarchy_depth:
-            nodes_copy = nodes.copy()
-            min_children = self.min_number_of_children(nodes, synsets)
-            for name, node in nodes_copy.items():
-                if len(node['children']) == min_children and len(node['children']) != 0:
-                    # if self.get_max_depth(name, nodes, synsets) <= self.desired_hierarchy_depth:
-                    #     continue
-                    if node['parent'] == None:
-                        num_roots += 1
-                        continue
-                    parent = node['parent']
-                    children = node['children']
-                    nodes[parent]['children'].remove(name)
-                    nodes[parent]['children'] += children
-                    # Update the parent of the children
-                    for child in children:
-                        nodes[child]['parent'] = parent
-                    # Delete the node
-                    del nodes[name]
-            self.max_hierarchy_depth = self.get_max_depth(root, nodes, synsets)
-        print(f"Number of roots: {num_roots}")
+        # num_roots = 0
+        # while self.max_hierarchy_depth > self.desired_hierarchy_depth:
+        #     nodes_copy = nodes.copy()
+        #     min_children = self.min_number_of_children(nodes, synsets)
+        #     for name, node in nodes_copy.items():
+        #         if len(node['children']) == min_children and len(node['children']) != 0:
+        #             # if self.get_max_depth(name, nodes, synsets) <= self.desired_hierarchy_depth:
+        #             #     continue
+        #             if node['parent'] == None:
+        #                 num_roots += 1
+        #                 continue
+        #             parent = node['parent']
+        #             children = node['children']
+        #             nodes[parent]['children'].remove(name)
+        #             nodes[parent]['children'] += children
+        #             # Update the parent of the children
+        #             for child in children:
+        #                 nodes[child]['parent'] = parent
+        #             # Delete the node
+        #             del nodes[name]
+        #     self.max_hierarchy_depth = self.get_max_depth(root, nodes, synsets)
+        # print(f"Number of roots: {num_roots}")
 
+        leaf_nodes = [name for name, node in nodes.items()
+                      if len(node['children']) == 0]
+        
+        # For each leaf node, prune the tree until the desired depth is reached
+        for leaf_node in leaf_nodes:
+            # Get depth of the leaf node
+            depth = self.get_max_depth(root, nodes, synsets)
+            # While the depth is greater than the desired depth
+            while depth > self.desired_hierarchy_depth:
+                # Get the node with the least number of children
+                min_children, min_node, depth = self.get_min_children_branch(leaf_node, nodes)
+                if min_node == 'artifact.n.01':
+                    print("test")
+                # Prune the node
+                if min_node != None:
+                    self.prune_node(min_node, nodes)
+
+        depth = self.get_max_depth(root, nodes, synsets)
+        
+        print(nodes['entity.n.01'])
         # Create the hierarchy dataframe starting from the root
         all_list = [[] for _ in range(self.n_classes)]
         for i, synset in enumerate(synsets):
@@ -217,7 +258,7 @@ class HierarchicalImageNet(Dataset):
                 name = nodes[name]['parent']
                 depth += 1
             # Add "-" to the hierarchy to make it of the same length
-            for j in range(depth, self.max_hierarchy_depth):
+            for j in range(depth, self.desired_hierarchy_depth):
                 all_list[i].insert(0, "-")
             # Reverse the hierarchy
             all_list[i].reverse()
@@ -244,31 +285,64 @@ class HierarchicalImageNet(Dataset):
                 min_num_children = num_children
         return min_num_children
 
+    # Removes node and merges its children with its parent
+    def prune_node(self, node_name:str, nodes:dict):
+        # Get the parent of the node
+        if node_name == None:
+            return
+        parent = nodes[node_name]['parent']
+        # Get the children of the node
+        children = nodes[node_name]['children']
+
+        if parent != None:
+            # Remove the node from the children of the parent
+            nodes[parent]['children'].remove(node_name)
+            # Add the children of the node to the children of the parent
+            nodes[parent]['children'] += children
+        # Update the parent of the children
+        for child in children:
+            nodes[child]['parent'] = parent
+        # Delete the node
+        del nodes[node_name]
+
+    def get_min_children_branch(self, leaf : str, nodes : dict) -> tuple[int, str]:
+        min_children = np.inf
+        node_name = leaf
+        min_name = None
+        depth = 0
+        while nodes[nodes[node_name]['parent']]['parent']!= 'entity.n.01':
+            parent = nodes[node_name]['parent']
+            if len(nodes[parent]['children']) < min_children and parent not in self.whitelist:
+                min_children = len(nodes[parent]['children'])
+                min_name = parent
+            node_name = parent
+            depth += 1
+        return min_children, min_name, depth
 
 if __name__ == "__main__":
     # Load the dataset
     dataset = HierarchicalImageNet("train")
-    dataloader = torch.utils.data.DataLoader(
-        dataset, batch_size=BATCH_SIZE, shuffle=True)
+    # dataloader = torch.utils.data.DataLoader(
+    #     dataset, batch_size=BATCH_SIZE, shuffle=True)
     
-    # Print dataset info
-    depth_class_to_index = dataset.depth_class_to_index
-    # Format the dictionary on multiple lines
-    depth_class_to_index_str = "{\n"
-    for depth, class_to_index in depth_class_to_index.items():
-        depth_class_to_index_str += f"    {depth}: {class_to_index},\n\n"
-    depth_class_to_index_str += "}"
-    print(f"Depth class to index: {depth_class_to_index_str}")
+    # # Print dataset info
+    # depth_class_to_index = dataset.depth_class_to_index
+    # # Format the dictionary on multiple lines
+    # depth_class_to_index_str = "{\n"
+    # for depth, class_to_index in depth_class_to_index.items():
+    #     depth_class_to_index_str += f"    {depth}: {class_to_index},\n\n"
+    # depth_class_to_index_str += "}"
+    # print(f"Depth class to index: {depth_class_to_index_str}")
     
-    # Load one batch and show in matplotlib
-    images, hierarchies = next(iter(dataloader))
-    # For each sample in the batch
-    for i in range(BATCH_SIZE):
-        # Get the class name
-        hierarchy = hierarchies[i]
-        # Get the image
-        image = images[i].permute(1, 2, 0)
-        # Show the image
-        plt.imshow(image)
-        plt.title(hierarchy)
-        plt.show()
+    # # Load one batch and show in matplotlib
+    # images, hierarchies = next(iter(dataloader))
+    # # For each sample in the batch
+    # for i in range(BATCH_SIZE):
+    #     # Get the class name
+    #     hierarchy = hierarchies[i]
+    #     # Get the image
+    #     image = images[i].permute(1, 2, 0)
+    #     # Show the image
+    #     plt.imshow(image)
+    #     plt.title(hierarchy)
+    #     plt.show()
