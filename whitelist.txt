@@ -1,0 +1,13 @@
+bird.n.01
+amphibian.n.03
+turtle.n.02
+fish.n.01
+snake.n.01
+arthropod.n.01
+tuber.n.01
+vegetable.n.01
+mammal.n.01
+invertebrate.n.01
+calculator.n.02
+garment.n.01
+musical_instrument.n.01
