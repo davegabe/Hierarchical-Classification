@@ -29,7 +29,11 @@ class HierarchicalImageNet(Dataset):
         
         # Load the hierarchy
         self.hierarchy = self.get_hierarchy()
-        # print(self.hierarchy.head())
+        # Get the number of classes for each depth
+        self.hierarchy_size = [
+            len(self.hierarchy.iloc[:, i].unique())
+            for i in range(self.desired_hierarchy_depth)
+        ]
 
         # save csv
         self.hierarchy.to_csv(f"{self.split}_hierarchy.csv", index=False, header=False)
@@ -51,13 +55,25 @@ class HierarchicalImageNet(Dataset):
             transforms.ToTensor(),
         ])
         sample = transform(image)
-        # Get the hierarchy of the class
-        hierarchy = self.hierarchy.iloc[class_id, :]
+
+        hierarchy = self.hierarchy.iloc[class_id, :]  
+        # Get the hierarchy index of the class
         hierarchy = [
             self.depth_class_to_index[i][hierarchy[i]]
             for i in range(self.desired_hierarchy_depth)
         ]
-        hierarchy_one_hot = torch.tensor(hierarchy)
+
+        # Create the one hot encoding of the hierarchy
+        hierarchy_one_hot = [
+            torch.zeros(self.hierarchy_size[i])
+            for i in range(self.desired_hierarchy_depth)
+        ]
+        # Set the one hot of the class to 1
+        for i, class_id in enumerate(hierarchy):
+            hierarchy_one_hot[i][class_id] = 1
+
+        # Concatenate the one hot encodings
+        hierarchy_one_hot = torch.cat(hierarchy_one_hot, dim=0)
         return sample, hierarchy_one_hot
 
     def get_depth_class_to_index(self) -> dict[int, dict[str, int]]:

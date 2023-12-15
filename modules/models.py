@@ -174,6 +174,10 @@ class VGG16(nn.Module):
 
         # Flatten and apply classifier
         logits = self.fine(x)
-        probas = F.softmax(logits, dim=1)
+        fine = F.softmax(logits, dim=1)
 
-        return logits, probas
+        # Concatenate coarse and fine predictions
+        c1 = F.softmax(c1, dim=1)
+        c2 = F.softmax(c2, dim=1)
+        probas = torch.cat([c1, c2, fine], dim=1)
+        return probas
