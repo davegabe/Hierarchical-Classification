@@ -15,12 +15,13 @@ nltk.download('wordnet')
 
 
 class HierarchicalImageNet(Dataset):
-    def __init__(self, split: str, root: str = "./dataset/"):
+    def __init__(self, split: str, root: str = "./dataset/", only_leaves: bool = False):
         self.root = root
         self.split = split
         self.max_hierarchy_depth = None
         self.desired_hierarchy_depth = 5
         self.real_hierarchy_depth = self.desired_hierarchy_depth - 2
+        self.only_leaves = False
         self.whitelist = []
         # Load the ImageNet dataset
         self.imagenet, self.classes = self.get_imagenet()
@@ -70,6 +71,12 @@ class HierarchicalImageNet(Dataset):
             transforms.ToTensor(),
         ])
         sample = transform(image)
+
+        # Return only the leaf class if only_leaves is True
+        if self.only_leaves:
+            hierarchy_one_hot = torch.zeros(self.n_classes)
+            hierarchy_one_hot[class_id] = 1
+            return sample, hierarchy_one_hot
 
         hierarchy = self.hierarchy.iloc[class_id, :]
         # Get the hierarchy index of the class
