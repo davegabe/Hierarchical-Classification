@@ -1,11 +1,18 @@
-from modules.models import VGG_19
-from modules.dataset import HierarchicalImageNet
 import torch
+from torch.utils.data import DataLoader
+from config import *
 
-# Load the dataset
-dataset = HierarchicalImageNet()
 
-# Load the model
-model = VGG_19()
+def test(model: torch.nn.Module, dataloader: DataLoader, previous_size: list[int], device: torch.device):
+    # Test the model
+    for i, (images, labels) in enumerate(dataloader):
+        # Move tensors to the configured device
+        images: torch.Tensor = images.to(device)
+        labels: torch.Tensor = labels.to(device)
 
-# ...
+        # Forward pass
+        logits = model(images)
+
+        # TODO: Write test code here
+
+    return
