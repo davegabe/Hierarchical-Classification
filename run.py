@@ -13,30 +13,29 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     # Load the dataset
-    dataset = HierarchicalImageNet("train", only_leaves=MODEL_NAME == "vgg16")
+    # dataset = HierarchicalImageNet("train", only_leaves=MODEL_NAME == "vgg16")
+    dataset = HierarchicalImageNet("train", only_leaves=True)
     dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
 
     # Hierarchy classes size
     hierarchy_size = dataset.hierarchy_size
-    previous_size = [sum(hierarchy_size[:i])
+    previous_size = [sum(hierarchy_size[:i+1])
                      for i in range(len(hierarchy_size))]
 
-    # Load the model
+    # Load the model and loss
     if MODEL_NAME == "vgg16":
-        model = VGG16(n_classes=sum(hierarchy_size)).to(device)
+        model = VGG16(n_classes=hierarchy_size[-1]).to(device)
+        loss = torch.nn.CrossEntropyLoss()
     elif MODEL_NAME == "branch_vgg16":
         model = BranchVGG16(n_classes=hierarchy_size, device=device,
                             n_branches=N_BRANCHES).to(device)
+        # loss = HierarchicalLoss(hierarchy_size)
+        loss = torch.nn.CrossEntropyLoss()
 
     # Print the number of trainable parameters
     size = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Trainable parameters: {size / 1e6:.3f} million (total: {size})")
-
-    # Define the loss and optimizer
-    if MODEL_NAME == "vgg16":
-        loss = torch.nn.CrossEntropyLoss()
-    elif MODEL_NAME == "branch_vgg16":
-        loss = HierarchicalLoss(hierarchy_size)
+    
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
     # Train the model

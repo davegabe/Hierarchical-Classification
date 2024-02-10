@@ -25,19 +25,19 @@ def train(model: torch.nn.Module, optimizer: torch.optim.Optimizer, loss_fn: tor
             optimizer.step()
 
             # Calculate accuracy
-            if MODEL_NAME == "branch_vgg16":
-                accuracies = []
-                for i in range(logits.shape[0]):
-                    # Fine prediction accuracy
-                    t = logits[i, previous_size[-1]:]  # Shape: (batch_size, size)
-                    l = labels[i, previous_size[-1]:]  # Shape: (batch_size, size)
-                    # print(max(t), min(t))
-                    accuracies.append(torch.argmax(t) == torch.argmax(l))
-                accuracies = torch.tensor(accuracies)
-                epoch_accuracy += torch.sum(accuracies) / accuracies.shape[0]
-            elif MODEL_NAME == "vgg16":
-                correct = torch.sum(torch.argmax(logits, dim=1) == labels)
-                epoch_accuracy += correct / logits.shape[0]
+            # if MODEL_NAME == "branch_vgg16":
+            #     accuracies = []
+            #     for i in range(logits.shape[0]):
+            #         # Fine prediction accuracy
+            #         t = logits[i, previous_size[-1]:]  # Shape: (batch_size, size)
+            #         l = labels[i, previous_size[-1]:]  # Shape: (batch_size, size)
+            #         # print(max(t), min(t))
+            #         accuracies.append(torch.argmax(t) == torch.argmax(l))
+            #     accuracies = torch.tensor(accuracies)
+            #     epoch_accuracy += torch.sum(accuracies) / accuracies.shape[0]
+            # elif MODEL_NAME == "vgg16":
+            correct = torch.sum(torch.argmax(logits, dim=1) == labels)
+            epoch_accuracy += correct / logits.shape[0]
 
             # Sum of all losses
             running_loss += loss.item()
