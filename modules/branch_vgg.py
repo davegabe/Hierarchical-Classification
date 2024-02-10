@@ -45,6 +45,7 @@ class BranchVGG16(nn.Module):
         # 2 coarse classifiers + 1 fine classifier
         assert len(n_classes) == 3
 
+        self.n_classes = n_classes
         self.n_branches = n_branches
 
         # Block 1
@@ -77,13 +78,16 @@ class BranchVGG16(nn.Module):
         self.fine = Classifier(self.fine_size, n_classes[-1])
 
         # Branch selector
-        self.branch_selector = nn.Sequential(
+        self.coarse_classifier = nn.Sequential(
             Branch().to(device),
             nn.Flatten(),
             nn.Linear(self.fine_size, 1024),
             nn.ReLU(True),
             nn.Dropout(),
-            nn.Linear(1024, n_branches),
+            nn.Linear(1024, n_classes[0] + n_classes[1])
+        )
+        self.branch_selector = nn.Sequential(
+            nn.Linear(n_classes[0] + n_classes[1], n_branches),
             nn.Softmax(dim=1)
         )
 
@@ -109,7 +113,10 @@ class BranchVGG16(nn.Module):
         x = self.block_3(x)
 
         # Select best branch by coarse prediction
-        branch_scores = self.branch_selector(x)
+        coarses = self.coarse_classifier(x) # Shape: (batch_size, n_classes[0] + n_classes[1])
+        c1 = coarses[:, :self.n_classes[0]] # Shape: (batch_size, n_classes[0])
+        c2 = coarses[:, self.n_classes[0]:] # Shape: (batch_size, n_classes[1])
+        branch_scores = self.branch_selector(coarses)
         max_indices = torch.argmax(branch_scores)
 
         # Apply selected branch
@@ -118,4 +125,6 @@ class BranchVGG16(nn.Module):
         # Flatten and apply classifier
         fine = self.fine(x)
 
-        return fine
+        # Concatenate coarse and fine predictions
+        probas = torch.cat([c1, c2, fine], dim=1)
+        return probas

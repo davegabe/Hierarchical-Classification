@@ -13,8 +13,7 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     # Load the dataset
-    # dataset = HierarchicalImageNet("train", only_leaves=MODEL_NAME == "vgg16")
-    dataset = HierarchicalImageNet("train", only_leaves=True)
+    dataset = HierarchicalImageNet("train", only_leaves=MODEL_NAME == "vgg16")
     dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
 
     # Hierarchy classes size
@@ -29,8 +28,7 @@ def main():
     elif MODEL_NAME == "branch_vgg16":
         model = BranchVGG16(n_classes=hierarchy_size, device=device,
                             n_branches=N_BRANCHES).to(device)
-        # loss = HierarchicalLoss(hierarchy_size)
-        loss = torch.nn.CrossEntropyLoss()
+        loss = HierarchicalLoss(hierarchy_size)
 
     # Print the number of trainable parameters
     size = sum(p.numel() for p in model.parameters() if p.requires_grad)
