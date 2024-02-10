@@ -6,3 +6,4 @@ modules/__pycache__
 .vscode
 settings.json
 .venv/
+dataset.zip
