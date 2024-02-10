@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-
+import numpy as np
 class HierarchicalLoss(nn.Module):
     def __init__(self, hierarchy_size: list[int]):
         super(HierarchicalLoss, self).__init__()
@@ -8,7 +8,10 @@ class HierarchicalLoss(nn.Module):
         self.hierarchy_size = hierarchy_size
         self.previous_size = [sum(hierarchy_size[:i]) for i in range(len(hierarchy_size))]
         hierarchy_depth = len(hierarchy_size)
-        self.weights = [1 for _ in range(hierarchy_depth)]
+
+        self.weights = np.array([1, 1, 1])
+        self.weights = self.weights / np.sum(self.weights)
+        
         
     def forward(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
         """

@@ -2,14 +2,33 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from config import *
-
+import wandb
+import numpy as np
 
 def train(model: torch.nn.Module, optimizer: torch.optim.Optimizer, loss_fn: torch.nn.Module, dataloader: DataLoader, previous_size: list[int], device: torch.device):
+
+    # WandB
+    wandb.init(
+        project="hierarchical-classification",
+        config={
+            "model": MODEL_NAME,
+            "n_branches": N_BRANCHES,
+            "learning_rate": LEARNING_RATE,
+            "num_epochs": NUM_EPOCHS,
+            "batch_size": BATCH_SIZE,
+            "limit_classes": LIMIT_CLASSES,
+            "image_size": IMAGE_SIZE,
+            "loss_weights": loss_fn.weights
+        }
+    )
+    
     # Train the model
     for epoch in range(NUM_EPOCHS):
         # Loop over the dataset
         running_loss = 0.0
         epoch_accuracy = 0
+        total_branch_choices = []
+
         for i, (images, labels) in tqdm(enumerate(dataloader), total=len(dataloader)):
             # Move tensors to the configured device
             images: torch.Tensor = images.to(device)
@@ -17,8 +36,10 @@ def train(model: torch.nn.Module, optimizer: torch.optim.Optimizer, loss_fn: tor
             optimizer.zero_grad()
 
             # Forward pass
-            logits = model(images)
+            logits, branch_scores = model(images)
             loss = loss_fn(logits, labels)
+
+            
 
             # Backward and optimize
             loss.backward()
@@ -47,3 +68,16 @@ def train(model: torch.nn.Module, optimizer: torch.optim.Optimizer, loss_fn: tor
         epoch_loss = running_loss / len(dataloader)
         print(f'Epoch [{epoch+1}/{NUM_EPOCHS}], Loss: {epoch_loss:.4f}')
         print(f'Accuracy_epoch: {epoch_accuracy:.4f}')
+
+        # Log to wandb the branch scores
+        if MODEL_NAME == "branch_vgg16":
+            branch_choices = model.branch_choices
+            total_branch_choices += branch_choices
+            model.reset_branch_choices()
+            wandb.log({"loss": epoch_loss, "accuracy": epoch_accuracy, "histogram": branch_choices})
+        else:
+            wandb.log({"loss": epoch_loss, "accuracy": epoch_accuracy})
+
+    wandb.finish()
+
+

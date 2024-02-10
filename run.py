@@ -7,6 +7,7 @@ from modules.loss import HierarchicalLoss
 from train import train
 from config import *
 from torchinfo import summary
+import wandb
 
 def main():
     # Device configuration
@@ -35,6 +36,8 @@ def main():
     print(f"Trainable parameters: {size / 1e6:.3f} million (total: {size})")
     
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+
+    
 
     # summary(model, input_size=(BATCH_SIZE, 3, *IMAGE_SIZE))
     # Train the model
