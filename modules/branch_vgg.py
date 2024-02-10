@@ -3,7 +3,39 @@ import torch.nn.functional as F
 import torch
 from modules.vgg import Conv2dBlock, MaxPool2dBlock, Classifier
 from config import *
-import wandb
+import random
+
+class NonLearnableBranchSelector(nn.Module):
+    def __init__(self, n_branches: int):
+        """
+        Non-learnable branch selector.
+
+        Args:
+            n_branches (int): Number of branches.
+        """
+        super(NonLearnableBranchSelector, self).__init__()
+        self.n_branches = n_branches
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass.
+
+        Args:
+            x (torch.Tensor): Input tensor.
+
+        Returns:
+            torch.Tensor: Output tensor.
+        """
+        # Initialize branch scores
+        branch_scores = torch.zeros(x.shape[0], self.n_branches)
+        # Compute the sum of the splits
+        split = x.shape[1] // self.n_branches
+        for i in range(self.n_branches):
+            start = i * split
+            end = max((i + 1) * split, x.shape[1])
+            branch_scores[:, i] = torch.sum(x[:, start:end], dim=1)        
+        return branch_scores
+
 
 class Branch(nn.Module):
     def __init__(self):
@@ -32,7 +64,7 @@ class Branch(nn.Module):
 
 
 class BranchVGG16(nn.Module):
-    def __init__(self, n_classes: list[int], n_branches: int = 1, device: str = "cpu"):
+    def __init__(self, n_classes: list[int], n_branches: int = 1, device: str = "cpu", eps: float = 0):
         """
         VGG16 model with n branches and coarse classifiers.
 
@@ -47,6 +79,7 @@ class BranchVGG16(nn.Module):
 
         self.n_classes = n_classes
         self.n_branches = n_branches
+        self.eps = eps
 
         # Block 1
         self.block_1 = nn.Sequential(
@@ -86,10 +119,13 @@ class BranchVGG16(nn.Module):
             nn.Dropout(),
             nn.Linear(1024, n_classes[0] + n_classes[1])
         )
-        self.branch_selector = nn.Sequential(
-            nn.Linear(n_classes[1], n_branches),
-            nn.Sigmoid()
-        )
+        if BRANCH_SELECTOR == "learnable":
+            self.branch_selector = nn.Sequential(
+                nn.Linear(n_classes[0], n_branches),
+                nn.Sigmoid()
+            )
+        else:
+            self.branch_selector = NonLearnableBranchSelector(n_branches)
 
         self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
 
@@ -121,17 +157,23 @@ class BranchVGG16(nn.Module):
         coarses = self.coarse_classifier(x) # Shape: (batch_size, n_classes[0] + n_classes[1])
         c1 = coarses[:, :self.n_classes[0]] # Shape: (batch_size, n_classes[0])
         c2 = coarses[:, self.n_classes[0]:] # Shape: (batch_size, n_classes[1])
-        branch_scores = self.branch_selector(c2)
+
+        # Select branch
+        branch_scores = self.branch_selector(c1)
         max_indices = torch.argmax(branch_scores, dim=1)
 
-        # Update branch choices
-        self.branch_choices += max_indices.detach().cpu().tolist()
 
         # Apply selected branch
         results = []
         for i in range(x.shape[0]):
-            max_index = max_indices[i]
+            if random.random() > self.eps:
+                max_index = random.randint(0, self.n_branches - 1)
+            else:
+                max_index = max_indices[i]
             results.append(self.branches[max_index](x[i]))
+            # Update branch choices
+            self.branch_choices += [max_index]
+        self.eps *= 0.99
         x = torch.stack(results)
 
         # Flatten and apply classifier

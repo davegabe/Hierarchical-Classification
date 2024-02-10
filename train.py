@@ -18,7 +18,7 @@ def train(model: torch.nn.Module, optimizer: torch.optim.Optimizer, loss_fn: tor
             "batch_size": BATCH_SIZE,
             "limit_classes": LIMIT_CLASSES,
             "image_size": IMAGE_SIZE,
-            "loss_weights": loss_fn.weights
+            "loss_weights": loss_fn.weights if MODEL_NAME=='branch_vgg16' else None 
         }
     )
     
@@ -36,10 +36,8 @@ def train(model: torch.nn.Module, optimizer: torch.optim.Optimizer, loss_fn: tor
             optimizer.zero_grad()
 
             # Forward pass
-            logits, branch_scores = model(images)
-            loss = loss_fn(logits, labels)
-
-            
+            logits  = model(images)
+            loss = loss_fn(logits, labels)            
 
             # Backward and optimize
             loss.backward()
