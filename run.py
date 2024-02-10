@@ -6,7 +6,7 @@ from modules.dataset import HierarchicalImageNet
 from modules.loss import HierarchicalLoss
 from train import train
 from config import *
-
+from torchinfo import summary
 
 def main():
     # Device configuration
@@ -36,6 +36,7 @@ def main():
     
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
+    # summary(model, input_size=(BATCH_SIZE, 3, *IMAGE_SIZE))
     # Train the model
     train(model, optimizer, loss, dataloader, previous_size, device)
 

@@ -29,8 +29,8 @@ def train(model: torch.nn.Module, optimizer: torch.optim.Optimizer, loss_fn: tor
                 accuracies = []
                 for i in range(logits.shape[0]):
                     # Fine prediction accuracy
-                    t = logits[i, previous_size[-1]:]  # Shape: (batch_size, size)
-                    l = labels[i, previous_size[-1]:]  # Shape: (batch_size, size)
+                    t = logits[i, previous_size[-2]:]  # Shape: (batch_size, size)
+                    l = labels[i, previous_size[-2]:]  # Shape: (batch_size, size)
                     # print(max(t), min(t))
                     accuracies.append(torch.argmax(t) == torch.argmax(l))
                 accuracies = torch.tensor(accuracies)

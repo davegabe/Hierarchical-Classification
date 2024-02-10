@@ -7,3 +7,4 @@ dependencies:
   - torchvision
   - pandas
   - nltk
+  - torchinfo

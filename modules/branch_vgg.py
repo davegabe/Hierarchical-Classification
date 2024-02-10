@@ -88,7 +88,7 @@ class BranchVGG16(nn.Module):
         )
         self.branch_selector = nn.Sequential(
             nn.Linear(n_classes[0] + n_classes[1], n_branches),
-            nn.Softmax(dim=1)
+            nn.Sigmoid()
         )
 
         self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
@@ -117,10 +117,14 @@ class BranchVGG16(nn.Module):
         c1 = coarses[:, :self.n_classes[0]] # Shape: (batch_size, n_classes[0])
         c2 = coarses[:, self.n_classes[0]:] # Shape: (batch_size, n_classes[1])
         branch_scores = self.branch_selector(coarses)
-        max_indices = torch.argmax(branch_scores)
+        max_indices = torch.argmax(branch_scores, dim=1)
 
         # Apply selected branch
-        x = self.branches[max_indices](x)
+        results = []
+        for i in range(x.shape[0]):
+            max_index = max_indices[i]
+            results.append(self.branches[max_index](x[i]))
+        x = torch.stack(results)
 
         # Flatten and apply classifier
         fine = self.fine(x)
