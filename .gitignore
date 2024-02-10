@@ -7,3 +7,4 @@ modules/__pycache__
 settings.json
 .venv/
 dataset.zip
+wandb/
