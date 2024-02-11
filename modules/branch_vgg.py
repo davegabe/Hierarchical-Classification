@@ -1,8 +1,9 @@
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
+import itertools
 from modules.vgg import Conv2dBlock, MaxPool2dBlock, Classifier
-from config import *
+from config import BRANCH_SELECTOR, L1_REGULARIZATION, SIMILARITY_REGULARIZATION
 import random
 
 
@@ -37,21 +38,32 @@ class BranchSelector(nn.Module):
         x = self.activation(x)
         return x
 
-    def l1_loss(self) -> torch.Tensor:
+    def regularize(self) -> torch.Tensor:
         """
-        Compute L1 loss on the rows of the weight matrix. This is a form of
-        regularization that encourages the model to use different branches
-        for different classes.
+        Compute L1 loss on the rows of the weight matrix and similiarity loss on the rows of the weight matrix.
+        This encourages the model to use different branches for different classes.
+
 
         Returns:
             torch.Tensor: L1 loss.
         """
-        l1_regularization = torch.tensor(0.)
+        device = self.linear.weight.device
+        l1 = torch.tensor(0.).to(device)
+        sim = torch.tensor(0.).to(device)
         weights = self.linear.weight
-        # For each output neuron, compute the L1 norm of the weights
-        for param in weights:
-            l1_regularization += torch.norm(param, 1)
-        return l1_regularization
+
+        # For each output neuron, compute the L1 norm of the weights and the similarity loss
+        for i, param in enumerate(weights):
+            l1 += torch.norm(param, 1)
+
+        # Compute combination of weights to check similarity
+        indexes = [i for i in range(self.n_branches)]
+        combinations = list(itertools.combinations(indexes, 2))
+        # # Compute similarity loss
+        # for i, j in combinations:
+        #     sim += F.cosine_similarity(weights[i], weights[j])
+            
+        return l1 * L1_REGULARIZATION + sim * SIMILARITY_REGULARIZATION
 
 
 class NonLearnableBranchSelector(nn.Module):
@@ -233,11 +245,11 @@ class BranchVGG16(nn.Module):
         probas = torch.cat([c1, c2, fine], dim=1)
         return probas
 
-    def l1_loss(self) -> torch.Tensor:
+    def regularize(self) -> torch.Tensor:
         """
-        Compute L1 loss of the branch selector.
+        Compute regularization loss.
         
         Returns:
-            torch.Tensor: L1 loss.
+            torch.Tensor: Regularization loss.
         """
-        return self.branch_selector.l1_loss()
+        return self.branch_selector.regularize()

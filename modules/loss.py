@@ -9,13 +9,12 @@ class HierarchicalLoss(nn.Module):
         self.loss = nn.CrossEntropyLoss()
         self.hierarchy_size = hierarchy_size
         self.previous_size = [sum(hierarchy_size[:i]) for i in range(len(hierarchy_size))]
-        hierarchy_depth = len(hierarchy_size)
-
-        self.weights = np.array([0.8, 0, 0])
+        self.weights = np.array([0.9, 0, 0.1])
         self.weights = self.weights / np.sum(self.weights)
+        self.last_epoch = 0
         
         
-    def forward(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+    def forward(self, logits: torch.Tensor, labels: torch.Tensor, epoch: int) -> torch.Tensor:
         """
         Compute the loss for each hierarchy level and return the weighted sum of losses.
 
@@ -26,6 +25,13 @@ class HierarchicalLoss(nn.Module):
         Returns:
             torch.Tensor: Loss.
         """
+        # Update weights on epoch change
+        if epoch != self.last_epoch:
+            self.last_epoch = epoch
+            self.weights[0] = max(self.weights[0] * 0.99, 0.1)
+            self.weights[2] = 1 - self.weights[0] - self.weights[1]
+            self.weights = self.weights / np.sum(self.weights)
+
         # Compute the loss for each level of the hierarchy
         losses = []
         for previous_size, size in zip(self.previous_size, self.hierarchy_size):
@@ -38,8 +44,4 @@ class HierarchicalLoss(nn.Module):
         for i in range(len(losses)):
             total_loss += self.weights[i] * losses[i]
 
-        # Update weights decreasing the weight of the first level and increasing the weight of the last level
-        self.weights[0] = max(self.weights[0] * 0.99, 0.1)
-        self.weights[2] = 1 - self.weights[0] - self.weights[1]
-        self.weights = self.weights / np.sum(self.weights)
         return total_loss
