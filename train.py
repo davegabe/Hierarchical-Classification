@@ -12,6 +12,7 @@ def train(model: torch.nn.Module, optimizer: torch.optim.Optimizer, loss_fn: tor
         project="hierarchical-classification",
         config={
             "model": MODEL_NAME,
+            "branch_selector": BRANCH_SELECTOR if MODEL_NAME == "branch_vgg16" else None,
             "n_branches": N_BRANCHES,
             "learning_rate": LEARNING_RATE,
             "num_epochs": NUM_EPOCHS,
@@ -50,10 +51,12 @@ def train(model: torch.nn.Module, optimizer: torch.optim.Optimizer, loss_fn: tor
                     # Fine prediction accuracy
                     t = logits[i, previous_size[-2]:]  # Shape: (batch_size, size)
                     l = labels[i, previous_size[-2]:]  # Shape: (batch_size, size)
-                    # print(max(t), min(t))
                     accuracies.append(torch.argmax(t) == torch.argmax(l))
                 accuracies = torch.tensor(accuracies)
                 epoch_accuracy += torch.sum(accuracies) / accuracies.shape[0]
+                # If branch selector is learnable, add the l1 loss
+                if BRANCH_SELECTOR == "learnable":
+                    loss += model.l1_loss() * BS_L1_REGULARIZATION
             elif MODEL_NAME == "vgg16":
                 correct = torch.sum(torch.argmax(logits, dim=1) == labels)
                 epoch_accuracy += correct / logits.shape[0]
@@ -72,9 +75,21 @@ def train(model: torch.nn.Module, optimizer: torch.optim.Optimizer, loss_fn: tor
             branch_choices = model.branch_choices
             total_branch_choices += branch_choices
             model.reset_branch_choices()
-            wandb.log({"loss": epoch_loss, "accuracy": epoch_accuracy, "histogram": branch_choices})
+            wandb.log({
+                "loss": epoch_loss,
+                "accuracy": epoch_accuracy,
+                "histogram": branch_choices,
+                "w_coarse_0": loss_fn.weights[0],
+                "w_coarse_1": loss_fn.weights[1],
+                "w_fine": loss_fn.weights[2]
+            }, step=epoch)
+            if BRANCH_SELECTOR == "learnable":
+                # Log the branch selector weights for each output node
+                weight_matrix = model.branch_selector.linear.weight.detach().cpu().numpy()
+                for i, param in enumerate(weight_matrix):
+                    wandb.log({f"bs_{i + 1}_weights": wandb.Histogram(param)}, step=epoch)
         else:
-            wandb.log({"loss": epoch_loss, "accuracy": epoch_accuracy})
+            wandb.log({"loss": epoch_loss, "accuracy": epoch_accuracy}, step=epoch)
 
     wandb.finish()
 

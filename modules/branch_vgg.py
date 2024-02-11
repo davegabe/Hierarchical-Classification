@@ -5,6 +5,55 @@ from modules.vgg import Conv2dBlock, MaxPool2dBlock, Classifier
 from config import *
 import random
 
+
+class BranchSelector(nn.Module):
+    def __init__(self, n_classes: int, n_branches: int):
+        """
+        Learnable branch selector.
+
+        Args:
+            n_classes (int): Number of classes.
+            n_branches (int): Number of branches.
+        """
+        super(BranchSelector, self).__init__()
+        self.n_classes = n_classes
+        self.n_branches = n_branches
+        self.linear = nn.Linear(n_classes, n_branches)
+        self.activation = nn.Sigmoid()
+        print(f"BranchSelector: {n_classes} -> {n_branches} branches")
+
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass.
+
+        Args:
+            x (torch.Tensor): Input tensor.
+
+        Returns:
+            torch.Tensor: Output tensor.
+        """
+        x = self.linear(x)
+        x = self.activation(x)
+        return x
+
+    def l1_loss(self) -> torch.Tensor:
+        """
+        Compute L1 loss on the rows of the weight matrix. This is a form of
+        regularization that encourages the model to use different branches
+        for different classes.
+
+        Returns:
+            torch.Tensor: L1 loss.
+        """
+        l1_regularization = torch.tensor(0.)
+        weights = self.linear.weight
+        # For each output neuron, compute the L1 norm of the weights
+        for param in weights:
+            l1_regularization += torch.norm(param, 1)
+        return l1_regularization
+
+
 class NonLearnableBranchSelector(nn.Module):
     def __init__(self, n_branches: int):
         """
@@ -33,7 +82,7 @@ class NonLearnableBranchSelector(nn.Module):
         for i in range(self.n_branches):
             start = i * split
             end = max((i + 1) * split, x.shape[1])
-            branch_scores[:, i] = torch.sum(x[:, start:end], dim=1)        
+            branch_scores[:, i] = torch.sum(x[:, start:end], dim=1)
         return branch_scores
 
 
@@ -120,10 +169,9 @@ class BranchVGG16(nn.Module):
             nn.Linear(1024, n_classes[0] + n_classes[1])
         )
         if BRANCH_SELECTOR == "learnable":
-            self.branch_selector = nn.Sequential(
-                nn.Linear(n_classes[0], n_branches),
-                nn.Sigmoid()
-            )
+            self.branch_selector = BranchSelector(
+                n_classes[0], n_branches
+            ).to(device)
         else:
             self.branch_selector = NonLearnableBranchSelector(n_branches)
 
@@ -154,14 +202,16 @@ class BranchVGG16(nn.Module):
         x = self.block_3(x)
 
         # Select best branch by coarse prediction
-        coarses = self.coarse_classifier(x) # Shape: (batch_size, n_classes[0] + n_classes[1])
-        c1 = coarses[:, :self.n_classes[0]] # Shape: (batch_size, n_classes[0])
-        c2 = coarses[:, self.n_classes[0]:] # Shape: (batch_size, n_classes[1])
+        # Shape: (batch_size, n_classes[0] + n_classes[1])
+        coarses = self.coarse_classifier(x)
+        # Shape: (batch_size, n_classes[0])
+        c1 = coarses[:, :self.n_classes[0]]
+        # Shape: (batch_size, n_classes[1])
+        c2 = coarses[:, self.n_classes[0]:]
 
         # Select branch
         branch_scores = self.branch_selector(c1)
         max_indices = torch.argmax(branch_scores, dim=1)
-
 
         # Apply selected branch
         results = []
@@ -181,4 +231,13 @@ class BranchVGG16(nn.Module):
 
         # Concatenate coarse and fine predictions
         probas = torch.cat([c1, c2, fine], dim=1)
-        return probas, branch_scores
+        return probas
+
+    def l1_loss(self) -> torch.Tensor:
+        """
+        Compute L1 loss of the branch selector.
+        
+        Returns:
+            torch.Tensor: L1 loss.
+        """
+        return self.branch_selector.l1_loss()

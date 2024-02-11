@@ -42,5 +42,4 @@ class HierarchicalLoss(nn.Module):
         self.weights[0] = max(self.weights[0] * 0.99, 0.1)
         self.weights[2] = 1 - self.weights[0] - self.weights[1]
         self.weights = self.weights / np.sum(self.weights)
-        wandb.log({"weight_0": self.weights[0], "weight_1": self.weights[1], "weight_2": self.weights[2]})
         return total_loss

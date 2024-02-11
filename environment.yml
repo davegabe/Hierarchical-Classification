@@ -8,3 +8,7 @@ dependencies:
   - pandas
   - nltk
   - torchinfo
+  - pip
+  - pip:
+    - wandb
+    - torchinfo
