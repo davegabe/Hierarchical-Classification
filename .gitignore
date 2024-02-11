@@ -8,3 +8,4 @@ settings.json
 .venv/
 dataset.zip
 wandb/
+models/
