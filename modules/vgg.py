@@ -104,6 +104,7 @@ class VGG16(nn.Module):
         self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
 
         for m in self.modules():
+            print(type(m))
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(
                     m.weight, mode="fan_out", nonlinearity="relu")
@@ -123,6 +124,9 @@ class VGG16(nn.Module):
         x = self.block_3(x)
         x = self.block_4(x)
         x = self.block_5(x)
+
+        # Apply average pooling
+        x = self.avgpool(x)
 
         # Flatten and apply classifier
         fine = self.fine(x)
