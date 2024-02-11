@@ -3,10 +3,12 @@ from torch.utils.data import DataLoader
 from modules.vgg import VGG16
 from modules.branch_vgg import BranchVGG16
 from modules.loss import HierarchicalLoss
+from modules.hcnn_loss import HCNNLoss
+from modules.vgg11_hcnn import VGG11_HCNN
 from tqdm import tqdm
 from config import NUM_EPOCHS, BRANCH_SELECTOR
 import wandb
-
+from config import BATCH_SIZE
 
 def train_vgg(model: VGG16, optimizer: torch.optim.Optimizer, loss_fn: torch.nn.CrossEntropyLoss, dataloader: DataLoader, device: torch.device):
     # Train the model
@@ -15,26 +17,28 @@ def train_vgg(model: VGG16, optimizer: torch.optim.Optimizer, loss_fn: torch.nn.
         running_loss = 0.0
         epoch_accuracy = 0
 
-        for i, (images, labels) in tqdm(enumerate(dataloader), total=len(dataloader)):
-            # Move tensors to the configured device
-            images: torch.Tensor = images.to(device)
-            labels: torch.Tensor = labels.to(device)
-            optimizer.zero_grad()
+        with tqdm(total=len(dataloader)*BATCH_SIZE) as pbar:
+            for i, (images, labels) in enumerate(dataloader):
+                # Move tensors to the configured device
+                images: torch.Tensor = images.to(device)
+                labels: torch.Tensor = labels.to(device)
+                optimizer.zero_grad()
 
-            # Forward pass
-            logits  = model(images)
-            loss = loss_fn(logits, labels)
+                # Forward pass
+                logits  = model(images)
+                loss = loss_fn(logits, labels)
 
-            # Compute accuracy
-            correct = torch.sum(torch.argmax(logits, dim=1) == labels)
-            epoch_accuracy += correct / logits.shape[0] 
+                # Compute accuracy
+                correct = torch.sum(torch.argmax(logits, dim=1) == labels)
+                epoch_accuracy += correct / logits.shape[0] 
 
-            # Backward and optimize
-            loss.backward()
-            optimizer.step()
+                # Backward and optimize
+                loss.backward()
+                optimizer.step()
 
-            # Sum of all losses
-            running_loss += loss.item()
+                # Sum of all losses
+                running_loss += loss.item()
+                pbar.update(BATCH_SIZE)
 
         # print accuracy per epoch
         epoch_accuracy /= len(dataloader)
@@ -54,35 +58,38 @@ def train_branch_vgg(model: BranchVGG16, optimizer: torch.optim.Optimizer, loss_
         epoch_accuracy = 0
         total_branch_choices = []
 
-        for i, (images, labels) in tqdm(enumerate(dataloader), total=len(dataloader)):
-            # Move tensors to the configured device
-            images: torch.Tensor = images.to(device)
-            labels: torch.Tensor = labels.to(device)
-            optimizer.zero_grad()
+        with tqdm(total=len(dataloader)*BATCH_SIZE) as pbar:
 
-            # Forward pass
-            logits  = model(images)
-            loss = loss_fn(logits, labels, epoch)
+            for i, (images, labels) in enumerate(dataloader):
+                # Move tensors to the configured device
+                images: torch.Tensor = images.to(device)
+                labels: torch.Tensor = labels.to(device)
+                optimizer.zero_grad()
 
-            # Compute accuracy
-            accuracies = []
-            for i in range(logits.shape[0]):
-                # Fine prediction accuracy
-                t = logits[i, previous_size[-2]:]  # Shape: (batch_size, size)
-                l = labels[i, previous_size[-2]:]  # Shape: (batch_size, size)
-                accuracies.append(torch.argmax(t) == torch.argmax(l))
-            accuracies = torch.tensor(accuracies)
-            epoch_accuracy += torch.sum(accuracies) / accuracies.shape[0]
-            # If branch selector is learnable, add the l1 loss
-            if BRANCH_SELECTOR == "learnable":
-                loss += model.regularize()
+                # Forward pass
+                logits  = model(images)
+                loss = loss_fn(logits, labels, epoch)
 
-            # Backward and optimize
-            loss.backward()
-            optimizer.step()
+                # Compute accuracy
+                accuracies = []
+                for i in range(logits.shape[0]):
+                    # Fine prediction accuracy
+                    t = logits[i, previous_size[-2]:]  # Shape: (batch_size, size)
+                    l = labels[i, previous_size[-2]:]  # Shape: (batch_size, size)
+                    accuracies.append(torch.argmax(t) == torch.argmax(l))
+                accuracies = torch.tensor(accuracies)
+                epoch_accuracy += torch.sum(accuracies) / accuracies.shape[0]
+                # If branch selector is learnable, add the l1 loss
+                if BRANCH_SELECTOR == "learnable":
+                    loss += model.regularize()
 
-            # Sum of all losses
-            running_loss += loss.item()
+                # Backward and optimize
+                loss.backward()
+                optimizer.step()
+
+                # Sum of all losses
+                running_loss += loss.item()
+                pbar.update(BATCH_SIZE)
 
         # print accuracy per epoch
         epoch_accuracy /= len(dataloader)
@@ -108,3 +115,59 @@ def train_branch_vgg(model: BranchVGG16, optimizer: torch.optim.Optimizer, loss_
             weight_matrix = model.branch_selector.linear.weight.detach().cpu().numpy()
             for i, param in enumerate(weight_matrix):
                 wandb.log({f"bs_{i + 1}_weights": wandb.Histogram(param)}, step=epoch)
+
+def train_hcnn(model: VGG11_HCNN, optimizer: torch.optim.Optimizer, loss_fn: HierarchicalLoss, dataloader: DataLoader, device: torch.device):
+    # Train the model
+    for epoch in range(NUM_EPOCHS):
+        # Loop over the dataset
+        running_loss = 0.0
+        epoch_accuracy = 0
+        total_branch_choices = []
+
+        with tqdm(total=len(dataloader)*BATCH_SIZE) as pbar:
+
+            for i, (images, labels) in enumerate(dataloader):
+                # Move tensors to the configured device
+                images: torch.Tensor = images.to(device)
+                labels: torch.Tensor = labels.to(device)
+                optimizer.zero_grad()
+
+                # Forward pass
+                c1, c2, fine = model(images)
+                labels_arr = [labels[:, 0:c1.shape[1]], labels[:, c1.shape[1]:c1.shape[1]+c2.shape[1]], labels[:, c1.shape[1]+c2.shape[1]:]]
+                loss = loss_fn([c1, c2, fine], labels_arr, epoch)
+
+                # Compute accuracy
+                accuracies = []
+                for i in range(fine.shape[0]):
+                    # Fine prediction accuracy
+                    t = fine[i]  # Shape: (batch_size, size)
+                    l = labels_arr[2][i]  # Shape: (batch_size, size)
+                    accuracies.append(torch.argmax(t) == torch.argmax(l))
+                accuracies = torch.tensor(accuracies)
+                epoch_accuracy += torch.sum(accuracies) / accuracies.shape[0]
+              
+                # Backward and optimize
+                loss.backward()
+                optimizer.step()
+
+                # Sum of all losses
+                running_loss += loss.item()
+                pbar.update(BATCH_SIZE)
+
+        # print accuracy per epoch
+        epoch_accuracy /= len(dataloader)
+        epoch_loss = running_loss / len(dataloader)
+        print(f'Epoch [{epoch+1}/{NUM_EPOCHS}], Loss: {epoch_loss:.4f}')
+        print(f'Accuracy_epoch: {epoch_accuracy:.4f}')
+
+       
+        wandb.log({
+            "loss": epoch_loss,
+            "accuracy": epoch_accuracy,
+            "w_coarse_0": loss_fn.weights[0],
+            "w_coarse_1": loss_fn.weights[1],
+            "w_fine": loss_fn.weights[2]
+        }, step=epoch)
+
+        

@@ -50,7 +50,7 @@ class HierarchicalImageNet(Dataset):
         class_hierarchy = self.hierarchy.iloc[class_index, :]
 
         hierarchy = [
-            self.depth_class_to_index[i][class_hierarchy[i]]
+            self.depth_class_to_index[i][class_hierarchy.iloc[i]]
             for i in range(self.hierarchy_depth)
         ]
 
@@ -86,6 +86,8 @@ class HierarchicalImageNet(Dataset):
     def get_hierarchy(self) -> pd.DataFrame:
         # Read the hierarchy
         hierarchy = pd.read_csv(os.path.join("dataset", "hierarchy.csv"))
+        # Sample random rows
+        hierarchy = hierarchy.sample(n=LIMIT_CLASSES).reset_index(drop=True)
         return hierarchy
 
     def get_classes(self) -> tuple[list[str], dict[str,int]]:

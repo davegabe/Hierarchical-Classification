@@ -1,10 +1,13 @@
 import torch
 from torch.utils.data import DataLoader
+from modules.vgg11_hcnn import VGG11_HCNN
+from modules.hcnn_loss import HCNNLoss
 from modules.vgg import VGG16
 from modules.branch_vgg import BranchVGG16
 from modules.dataset import HierarchicalImageNet
 from modules.loss import HierarchicalLoss
-from train import train_vgg, train_branch_vgg
+from torchvision.models import vgg16_bn
+from train import train_vgg, train_branch_vgg, train_hcnn
 from config import MODEL_NAME, BRANCH_SELECTOR, N_BRANCHES, LEARNING_RATE, NUM_EPOCHS, BATCH_SIZE, LIMIT_CLASSES, IMAGE_SIZE
 from torchinfo import summary
 import wandb
@@ -18,14 +21,14 @@ def main():
     # Device configuration
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    train_path= "/run/media/riccardo/ea24b431-b1e5-4ec3-95b0-fcbaf83641fb/ImageNet/train"
+    train_path= "/home/riccardo/Documents/train"
     in_info_path = "/run/media/riccardo/ea24b431-b1e5-4ec3-95b0-fcbaf83641fb/ImageNet/info"
 
     # in_hier = ImageNetHierarchy(in_path, in_info_path)
 
     # Load the dataset
     dataset = HierarchicalImageNet(split=train_path, only_leaves=MODEL_NAME == "vgg16")
-    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=8)
+    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
     
 
     # Hierarchy classes size
@@ -38,10 +41,16 @@ def main():
     if MODEL_NAME == "vgg16":
         model = VGG16(n_classes=hierarchy_size[-1]).to(device)
         loss = torch.nn.CrossEntropyLoss()
+        # model = vgg16_bn().to(device)
+        # loss = torch.nn.CrossEntropyLoss()
     elif MODEL_NAME == "branch_vgg16":
         model = BranchVGG16(n_classes=hierarchy_size, device=device,
                             n_branches=N_BRANCHES).to(device)
         loss = HierarchicalLoss(hierarchy_size)
+    elif MODEL_NAME == "vgg11_hcnn":
+        model = VGG11_HCNN(n_classes=hierarchy_size).to(device)
+        loss = HCNNLoss(hierarchy_size)
+
 
     # Print the number of trainable parameters
     size = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -67,11 +76,14 @@ def main():
         }
     )
 
+
     # Train the model
     if MODEL_NAME == "vgg16":
         train_vgg(model, optimizer, loss, dataloader, device)
     elif MODEL_NAME == "branch_vgg16":
         train_branch_vgg(model, optimizer, loss, dataloader, device, previous_size)
+    elif MODEL_NAME == "vgg11_hcnn":
+        train_hcnn(model, optimizer, loss, dataloader, device)
 
     # WandB
     wandb.finish()
