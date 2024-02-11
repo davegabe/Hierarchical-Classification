@@ -200,9 +200,9 @@ class BranchVGG16(nn.Module):
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
-            # elif isinstance(m, nn.Linear):
-                # nn.init.uniform_(m.weight)
-                # nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+                nn.init.constant_(m.bias, 0)
 
     def reset_branch_choices(self):
         self.branch_choices = []
@@ -237,6 +237,9 @@ class BranchVGG16(nn.Module):
             self.branch_choices += [max_index]
         self.eps *= 0.99
         x = torch.stack(results)
+
+        # Apply average pooling
+        x = self.avgpool(x)
 
         # Flatten and apply classifier
         fine = self.fine(x)
