@@ -22,14 +22,15 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     train_path= "/home/riccardo/Documents/train"
-    in_info_path = "/run/media/riccardo/ea24b431-b1e5-4ec3-95b0-fcbaf83641fb/ImageNet/info"
+    val_path = "dataset/validation"
 
     # in_hier = ImageNetHierarchy(in_path, in_info_path)
 
     # Load the dataset
     dataset = HierarchicalImageNet(split=train_path, only_leaves=MODEL_NAME == "vgg16")
-    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
-    
+    val_dataset = HierarchicalImageNet(split=val_path, only_leaves=MODEL_NAME == "vgg16")
+    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=3)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=3)
 
     # Hierarchy classes size
     hierarchy_size = [x for x in dataset.hierarchy_size]
@@ -79,11 +80,11 @@ def main():
 
     # Train the model
     if MODEL_NAME == "vgg16":
-        train_vgg(model, optimizer, loss, dataloader, device)
+        train_vgg(model, optimizer, loss, dataloader, val_loader, device)
     elif MODEL_NAME == "branch_vgg16":
         train_branch_vgg(model, optimizer, loss, dataloader, device, previous_size)
     elif MODEL_NAME == "vgg11_hcnn":
-        train_hcnn(model, optimizer, loss, dataloader, device)
+        train_hcnn(model, optimizer, loss, dataloader, val_loader, device)
 
     # WandB
     wandb.finish()

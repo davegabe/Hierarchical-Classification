@@ -6,11 +6,10 @@ from modules.loss import HierarchicalLoss
 from modules.hcnn_loss import HCNNLoss
 from modules.vgg11_hcnn import VGG11_HCNN
 from tqdm import tqdm
-from config import NUM_EPOCHS, BRANCH_SELECTOR
+from config import NUM_EPOCHS, BRANCH_SELECTOR, VAL_EPOCHS, BATCH_SIZE
 import wandb
-from config import BATCH_SIZE
 
-def train_vgg(model: VGG16, optimizer: torch.optim.Optimizer, loss_fn: torch.nn.CrossEntropyLoss, dataloader: DataLoader, device: torch.device):
+def train_vgg(model: VGG16, optimizer: torch.optim.Optimizer, loss_fn: torch.nn.CrossEntropyLoss, dataloader: DataLoader, val_loader: DataLoader, device: torch.device):
     # Train the model
     for epoch in range(NUM_EPOCHS):
         # Loop over the dataset
@@ -40,17 +39,34 @@ def train_vgg(model: VGG16, optimizer: torch.optim.Optimizer, loss_fn: torch.nn.
                 running_loss += loss.item()
                 pbar.update(BATCH_SIZE)
 
-        # print accuracy per epoch
+        # Print accuracy per epoch
         epoch_accuracy /= len(dataloader)
         epoch_loss = running_loss / len(dataloader)
         print(f'Epoch [{epoch+1}/{NUM_EPOCHS}], Loss: {epoch_loss:.4f}')
         print(f'Accuracy_epoch: {epoch_accuracy:.4f}')
 
+        # Validate the model
+        if epoch % VAL_EPOCHS == 0:
+            val_accuracy = 0
+            with torch.no_grad():
+                for i, (images, labels) in enumerate(val_loader):
+                    images: torch.Tensor = images.to(device)
+                    labels: torch.Tensor = labels.to(device)
+                    logits  = model(images)
+                    correct = torch.sum(torch.argmax(logits, dim=1) == labels)
+                    val_accuracy += correct / logits.shape[0]
+            val_accuracy /= len(val_loader)
+            print(f'Validation Accuracy: {val_accuracy:.4f}')
+            wandb.log({"val_accuracy": val_accuracy}, step=epoch)
+
+            # save model
+            torch.save(model.state_dict(), f"models/vgg16_{epoch}.pt")
+
         # Log to wandb the branch scores
         wandb.log({"loss": epoch_loss, "accuracy": epoch_accuracy}, step=epoch)
 
 
-def train_branch_vgg(model: BranchVGG16, optimizer: torch.optim.Optimizer, loss_fn: HierarchicalLoss, dataloader: DataLoader, device: torch.device, previous_size: list[int]):
+def train_branch_vgg(model: BranchVGG16, optimizer: torch.optim.Optimizer, loss_fn: HierarchicalLoss, dataloader: DataLoader, val_loader: DataLoader, device: torch.device, previous_size: list):
     # Train the model
     for epoch in range(NUM_EPOCHS):
         # Loop over the dataset
@@ -116,13 +132,20 @@ def train_branch_vgg(model: BranchVGG16, optimizer: torch.optim.Optimizer, loss_
             for i, param in enumerate(weight_matrix):
                 wandb.log({f"bs_{i + 1}_weights": wandb.Histogram(param)}, step=epoch)
 
-def train_hcnn(model: VGG11_HCNN, optimizer: torch.optim.Optimizer, loss_fn: HierarchicalLoss, dataloader: DataLoader, device: torch.device):
+        # Validate the model
+        if epoch % VAL_EPOCHS:
+            # TODO: Validate the model
+            pass
+
+def train_hcnn(model: VGG11_HCNN, optimizer: torch.optim.Optimizer, loss_fn: HierarchicalLoss, dataloader: DataLoader, val_loader: DataLoader, device: torch.device):
     # Train the model
     for epoch in range(NUM_EPOCHS):
         # Loop over the dataset
         running_loss = 0.0
         epoch_accuracy = 0
         total_branch_choices = []
+        val_accuracy = 0
+
 
         with tqdm(total=len(dataloader)*BATCH_SIZE) as pbar:
 
@@ -158,9 +181,28 @@ def train_hcnn(model: VGG11_HCNN, optimizer: torch.optim.Optimizer, loss_fn: Hie
         # print accuracy per epoch
         epoch_accuracy /= len(dataloader)
         epoch_loss = running_loss / len(dataloader)
-        print(f'Epoch [{epoch+1}/{NUM_EPOCHS}], Loss: {epoch_loss:.4f}')
-        print(f'Accuracy_epoch: {epoch_accuracy:.4f}')
+        print(f'Train Accuracy_epoch: {epoch_accuracy:.4f}')
 
+        if epoch % VAL_EPOCHS == 0:
+            with torch.no_grad():
+                with tqdm(total=len(val_loader)*BATCH_SIZE) as pbar:
+                    for i, (images, labels) in enumerate(val_loader):
+                        images: torch.Tensor = images.to(device)
+                        labels: torch.Tensor = labels.to(device)
+                        c1, c2, fine = model(images)
+                        labels_arr = [labels[:, 0:c1.shape[1]], labels[:, c1.shape[1]:c1.shape[1]+c2.shape[1]], labels[:, c1.shape[1]+c2.shape[1]:]]
+                        accuracies = []
+                        for i in range(fine.shape[0]):
+                            # Fine prediction accuracy
+                            t = fine[i]
+                            l = labels_arr[2][i]
+                            accuracies.append(torch.argmax(t) == torch.argmax(l))
+                        accuracies = torch.tensor(accuracies)
+                        val_accuracy += torch.sum(accuracies) / accuracies.shape[0]
+                        pbar.update(BATCH_SIZE)
+            val_accuracy /= len(val_loader)
+            print(f'Validation Accuracy: {val_accuracy:.4f}')
+            wandb.log({"val_accuracy": val_accuracy}, step=epoch)
        
         wandb.log({
             "loss": epoch_loss,
@@ -169,5 +211,7 @@ def train_hcnn(model: VGG11_HCNN, optimizer: torch.optim.Optimizer, loss_fn: Hie
             "w_coarse_1": loss_fn.weights[1],
             "w_fine": loss_fn.weights[2]
         }, step=epoch)
+
+        print(f'Epoch [{epoch+1}/{NUM_EPOCHS}], Loss: {epoch_loss:.4f}')
 
         
