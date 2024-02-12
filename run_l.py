@@ -2,6 +2,7 @@ import torch
 import pytorch_lightning as L
 from modules.vgg11_hcnn_light import VGG11_HCNN
 from modules.vgg_light import VGG16
+from modules.branch_vgg_light import BranchVGG16
 from modules.dataset import HierarchicalImageNet
 from torch.utils.data import DataLoader
 from config import *
@@ -25,5 +26,8 @@ if __name__ == "__main__":
             model = VGG11_HCNN(n_classes=train_dataset.hierarchy_size, lr=LEARNING_RATE)
         elif MODEL_NAME == "vgg16":
             model = VGG16(n_classes=train_dataset.hierarchy_size[-1], lr=LEARNING_RATE)
+        elif MODEL_NAME == "branch_vgg16":
+            model = BranchVGG16(n_classes=train_dataset.hierarchy_size, n_branches=N_BRANCHES, eps=0, lr=LEARNING_RATE)
+
 
     trainer.fit(model, train_loader, val_loader)
