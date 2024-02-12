@@ -8,7 +8,6 @@ from config import *
 
     
 
-torch.set_float32_matmul_precision('medium')
 if __name__ == "__main__":
     
     train_dataset = HierarchicalImageNet(split='/home/riccardo/Documents/train', only_leaves= MODEL_NAME=='vgg16')
@@ -19,7 +18,7 @@ if __name__ == "__main__":
 
    
 
-    trainer = L.Trainer(max_epochs=NUM_EPOCHS, benchmark=True, precision="16-true", default_root_dir='./models', enable_checkpointing=True)
+    trainer = L.Trainer(max_epochs=NUM_EPOCHS, benchmark=True, default_root_dir='./models', enable_checkpointing=True)
 
     with trainer.init_module():
         if MODEL_NAME == "vgg11_hcnn":
