@@ -9,6 +9,7 @@ dependencies:
   - nltk
   - torchinfo
   - pip
+  - pytorch_lightning
   - pip:
-    - wandb
-    - torchinfo
+      - wandb
+      - torchinfo

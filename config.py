@@ -1,5 +1,5 @@
 # Dataset parameters
-IMAGE_SIZE = (224, 224)
+IMAGE_SIZE = (128, 128)
 
 # Training parameters
 MODEL_NAME = "vgg16"  # "vgg16" or "branch_vgg16"
@@ -10,6 +10,9 @@ L1_REGULARIZATION = 1e-5
 SIMILARITY_REGULARIZATION = 0.001
 NUM_EPOCHS = 50
 VAL_EPOCHS = 5
-BATCH_SIZE = 32
-LIMIT_CLASSES = 200 # -1 means no limit, use all classes
+BATCH_SIZE = 24
+LIMIT_CLASSES = 100 # -1 means no limit, use all classes
 LIMIT_IMAGES = 500 # limit the number of images per class, -1 means no limit
+
+TRAIN_DATASET_PATH = "dataset/train"
+VAL_DATASET_PATH = "dataset/val"
