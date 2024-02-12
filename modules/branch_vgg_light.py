@@ -3,8 +3,9 @@ import torch.nn.functional as F
 import torch
 import itertools
 from modules.vgg import Conv2dBlock, MaxPool2dBlock, Classifier
-from config import BRANCH_SELECTOR, L1_REGULARIZATION, SIMILARITY_REGULARIZATION
+from config import BRANCH_SELECTOR, L1_REGULARIZATION, SIMILARITY_REGULARIZATION, LOG_STEP, PRIVILEGED
 import random
+import wandb
 import pytorch_lightning as L
 from modules.loss import HierarchicalLoss
 
@@ -138,12 +139,15 @@ class BranchVGG16(L.LightningModule):
 
         # 2 coarse classifiers + 1 fine classifier
         assert len(n_classes) == 3
+        self.weights = [0.5, 0, 0.5]
+
 
         self.n_classes = n_classes
         self.n_branches = n_branches
         self.eps = eps
         self.lr = lr
-        self.loss = HierarchicalLoss(n_classes)
+        self.step = 0
+        # self.loss = HierarchicalLoss(n_classes)
 
         # Block 1
         self.block_1 = nn.Sequential(
@@ -177,6 +181,7 @@ class BranchVGG16(L.LightningModule):
         # Branch selector
         self.coarse_classifier = nn.Sequential(
             Branch(),
+            nn.AdaptiveAvgPool2d((7, 7)),
             nn.Flatten(),
             nn.Linear(self.fine_size, 1024),
             nn.ReLU(True),
@@ -210,7 +215,7 @@ class BranchVGG16(L.LightningModule):
     def reset_branch_choices(self):
         self.branch_choices = []
 
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor, c1_true=None, training=False) -> tuple[torch.Tensor, torch.Tensor]:
         # Apply blocks
         x = self.block_1(x)
         x = self.block_2(x)
@@ -225,31 +230,38 @@ class BranchVGG16(L.LightningModule):
         c2 = coarses[:, self.n_classes[0]:]
 
         # Select branch
-        branch_scores = self.branch_selector(c1)
+        if PRIVILEGED and training:
+            branch_scores = self.branch_choices(c1_true)
+        else:
+            branch_scores = self.branch_selector(c1)
         max_indices = torch.argmax(branch_scores, dim=1)
 
         # Apply selected branch
         results = []
         for i in range(x.shape[0]):
-            if random.random() > self.eps:
-                max_index = random.randint(0, self.n_branches - 1)
-            else:
-                max_index = max_indices[i]
+            max_index = max_indices[i]
             results.append(self.branches[max_index](x[i]))
             # Update branch choices
             self.branch_choices += [max_index]
-        self.eps *= 0.99
         x = torch.stack(results)
 
         # Apply average pooling
         x = self.avgpool(x)
 
-        # Flatten and apply classifier
+        # Flatten and apply classifiers
         fine = self.fine(x)
 
+        # log steps
+        if self.step % LOG_STEP == 0:
+            if BRANCH_SELECTOR == "learnable":
+                # Log the branch selector weights for each output node
+                weight_matrix = self.branch_selector.linear.weight.detach().cpu().numpy()
+                for i, param in enumerate(weight_matrix):
+                    wandb.log({f"bs_{i + 1}_weights": wandb.Histogram(param)}, step=self.step)
+        self.step += 1
+
         # Concatenate coarse and fine predictions
-        probas = torch.cat([c1, c2, fine], dim=1)
-        return probas
+        return c1, c2, fine
 
     def regularize(self) -> torch.Tensor:
         """
@@ -266,17 +278,15 @@ class BranchVGG16(L.LightningModule):
     
     def training_step(self, train_batch, batch_idx):
         images, labels = train_batch
-        logits = self(images)
-        loss = self.loss(logits, labels, self.current_epoch)
-
-        accuracies = []
-        for i in range(logits.shape[0]):
-            # Fine prediction accuracy
-            t = logits[i, self.n_classes[0]+self.n_classes[1]+1:]  # Shape: (batch_size, size)
-            l = labels[i, self.n_classes[0]+self.n_classes[1]+1:]  # Shape: (batch_size, size)
-            accuracies.append(torch.argmax(t) == torch.argmax(l))
-        accuracies = torch.tensor(accuracies)
-        accuracy= torch.sum(accuracies) / accuracies.shape[0]
+        labels_arr = [labels[:, :self.n_classes[1]], labels[:, self.n_classes[1]:self.n_classes[1]+self.n_classes[2]], labels[:, self.n_classes[1]+self.n_classes[2]:]]
+        c1_true = torch.tensor(labels_arr[2]) # To fix
+        c1, c2, fine = self(images, c1_true, training=True)
+        loss = self.weights[0]*F.cross_entropy(c1, labels_arr[0]) + self.weights[1]*F.cross_entropy(c2, labels_arr[1]) + self.weights[2]*F.cross_entropy(fine, labels_arr[2])
+        
+        # Compute accuracy
+        fine_preds = torch.argmax(fine, dim=1)
+        fine_labels = torch.argmax(labels_arr[2], dim=1)
+        accuracy = torch.sum(fine_preds == fine_labels).float() / fine_preds.shape[0]
 
         if BRANCH_SELECTOR == 'learnable':
             loss += self.regularize()
@@ -287,21 +297,16 @@ class BranchVGG16(L.LightningModule):
     
     def validation_step(self, val_batch, batch_idx):
         images, labels = val_batch
-        logits = self(images)
-        loss = self.loss(logits, labels, self.current_epoch)
-        accuracies = []
-        for i in range(logits.shape[0]):
-            # Fine prediction accuracy
-            t = logits[i, self.n_classes[0]+self.n_classes[1]+1:]  # Shape: (batch_size, size)
-            l = labels[i, self.n_classes[0]+self.n_classes[1]+1:]  # Shape: (batch_size, size)
-            accuracies.append(torch.argmax(t) == torch.argmax(l))
-        accuracies = torch.tensor(accuracies)
-        accuracy= torch.sum(accuracies) / accuracies.shape[0]
+        c1, c2, fine = self(images)
+        labels_arr = [labels[:, 0:c1.shape[1]], labels[:, c1.shape[1]:c1.shape[1]+c2.shape[1]], labels[:, c1.shape[1]+c2.shape[1]:]]
+        loss = self.weights[0]*F.cross_entropy(c1, labels_arr[0]) + self.weights[1]*F.cross_entropy(c2, labels_arr[1]) + self.weights[2]*F.cross_entropy(fine, labels_arr[2])
+        
+        # Compute accuracy
+        fine_preds = torch.argmax(fine, dim=1)
+        fine_labels = torch.argmax(labels_arr[2], dim=1)
+        accuracy = torch.sum(fine_preds == fine_labels).float() / fine_preds.shape[0]
+
         self.log('val_loss', loss, prog_bar=True, on_epoch=True)
         self.log('val_accuracy', accuracy, prog_bar=True, on_epoch=True)
         return {'loss':loss, 'accuracy':accuracy}
-
-
-
-
-
+    
