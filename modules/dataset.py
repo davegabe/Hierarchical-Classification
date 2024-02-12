@@ -2,7 +2,7 @@ from torch.utils.data import Dataset
 from nltk.corpus import wordnet as wn
 import nltk
 from nltk.corpus.reader.wordnet import Synset
-from torchvision.transforms import transforms
+from torchvision.transforms import v2
 import pandas as pd
 import numpy as np
 import os
@@ -36,9 +36,12 @@ class HierarchicalImageNet(Dataset):
     def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor]:
         image_path, class_name = self.imagenet[index]
         image = Image.open(image_path, mode="r").convert("RGB")
-        transform = transforms.Compose([
-                transforms.Resize(IMAGE_SIZE),
-                transforms.ToTensor(),
+        transform = v2.Compose([
+                # v2.Resize(IMAGE_SIZE),
+                v2.RandomResizedCrop(size=IMAGE_SIZE, antialias=True),
+                v2.RandomHorizontalFlip(p=0.5),
+                v2.ToImage(),
+                v2.ToDtype(torch.float32, scale=True),
             ])
         image = transform(image)
 
