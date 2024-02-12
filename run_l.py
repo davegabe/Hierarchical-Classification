@@ -36,9 +36,9 @@ if __name__ == "__main__":
         precision="bf16-mixed", 
         accumulate_grad_batches=4,
         callbacks=[
-            LearningRateFinder(),
-            EarlyStopping('val_loss', mode='min', min_delta='0.005'),
-            RichProgressBar(),
+            LearningRateFinder(min_lr=1e-5, max_lr=1e-1),
+            # EarlyStopping('val_loss', mode='min', min_delta='0.005')
+            RichProgressBar()
             ]
         )
 
