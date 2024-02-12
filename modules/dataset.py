@@ -12,10 +12,11 @@ from PIL import Image
 from config import IMAGE_SIZE, LIMIT_IMAGES, LIMIT_CLASSES
 
 class HierarchicalImageNet(Dataset):
-    def __init__(self, split: str, root: str = "./dataset/", only_leaves: bool = False) -> None:
+    def __init__(self, split: str, root: str = "./dataset/", only_leaves: bool = False, random_state=42) -> None:
         self.root = root
         self.split = split
         self.only_leaves = only_leaves
+        self.random_state = random_state
         self.hierarchy = self.get_hierarchy()
         self.classes, self.classes_index = self.get_classes()
         self.imagenet = self.get_imagenet()
@@ -40,6 +41,7 @@ class HierarchicalImageNet(Dataset):
                 # v2.Resize(IMAGE_SIZE),
                 v2.RandomResizedCrop(size=IMAGE_SIZE, antialias=True),
                 v2.RandomHorizontalFlip(p=0.5),
+                v2.RandomRotation(135),
                 v2.ToImage(),
                 v2.ToDtype(torch.float32, scale=True),
             ])
@@ -90,7 +92,7 @@ class HierarchicalImageNet(Dataset):
         # Read the hierarchy
         hierarchy = pd.read_csv(os.path.join("dataset", "hierarchy.csv"))
         # Sample random rows
-        hierarchy = hierarchy.sample(n=LIMIT_CLASSES).reset_index(drop=True)
+        hierarchy = hierarchy.sample(n=LIMIT_CLASSES, random_state=self.random_state).reset_index(drop=True)
         return hierarchy
 
     def get_classes(self) -> tuple[list[str], dict[str,int]]:
@@ -103,8 +105,6 @@ class HierarchicalImageNet(Dataset):
             synset = wn.synset(class_name)
             pos = synset.pos()
             offset = synset.offset()
-            if offset == 2355477:
-                print(class_name, pos, offset)
             classes.append(f"{pos}{offset:08d}")
             classes_index[f"{pos}{offset:08d}"] = i
         return classes, classes_index
