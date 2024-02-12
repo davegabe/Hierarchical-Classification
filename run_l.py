@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 from config import *
 import random
 import numpy as np
+from pytorch_lightning.callbacks import LearningRateFinder, EarlyStopping, RichProgressBar
 
 torch.random.manual_seed(42)
 np.random.seed(42)
@@ -25,9 +26,22 @@ if __name__ == "__main__":
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, num_workers=15)
 
 
-   
+    
 
-    trainer = L.Trainer(max_epochs=NUM_EPOCHS, benchmark=True, default_root_dir='./models', enable_checkpointing=True, precision="bf16-mixed", accumulate_grad_batches=4)
+    trainer = L.Trainer(
+        max_epochs=NUM_EPOCHS, 
+        benchmark=True, 
+        default_root_dir='./models', 
+        enable_checkpointing=True, 
+        precision="bf16-mixed", 
+        accumulate_grad_batches=4,
+        callbacks=[
+            LearningRateFinder(),
+            EarlyStopping('val_loss', mode='min', min_delta='0.005'),
+            RichProgressBar(),
+            ]
+        )
+
 
     with trainer.init_module():
         if MODEL_NAME == "vgg11_hcnn":
@@ -38,5 +52,7 @@ if __name__ == "__main__":
             model = BranchVGG16(n_classes=train_dataset.hierarchy_size, n_branches=N_BRANCHES, eps=0, lr=LEARNING_RATE)
         elif MODEL_NAME == "resnet":
             model = ResNetClassifier(num_classes=train_dataset.hierarchy_size[-1], learning_rate=LEARNING_RATE)
+
+
 
     trainer.fit(model, train_loader, val_loader)
