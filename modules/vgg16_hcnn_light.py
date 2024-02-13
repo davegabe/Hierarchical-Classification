@@ -62,8 +62,8 @@ class VGG16_HCNN(L.LightningModule):
 
         self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
 
-        self.coarse1_block = CoarseBlock(128 * 56 * 56, n_classes[0])
-        self.coarse2_block = CoarseBlock(256 * 28 * 28, n_classes[1])
+        self.coarse1_block = CoarseBlock(128 * 32 * 32, n_classes[0])
+        self.coarse2_block = CoarseBlock(256 * 16 * 16, n_classes[1])
         self.classifier = Classifier(512 * 7 * 7, n_classes[2])
 
 
@@ -89,11 +89,7 @@ class VGG16_HCNN(L.LightningModule):
         labels_arr = [labels[:, 0:c1.shape[1]], labels[:, c1.shape[1]:c1.shape[1]+c2.shape[1]], labels[:, c1.shape[1]+c2.shape[1]:]]
         loss = self.weights[0]*F.cross_entropy(c1, labels_arr[0]) + self.weights[1]*F.cross_entropy(c2, labels_arr[1]) + self.weights[2]*F.cross_entropy(fine, labels_arr[2])
         accuracies = []
-        for i in range(fine.shape[0]):
-            # Fine prediction accuracy
-            t = fine[i]  # Shape: (batch_size, size)
-            l = labels_arr[2][i]  # Shape: (batch_size, size)
-            accuracies.append(torch.argmax(t) == torch.argmax(l))
+        accuracies = torch.eq(torch.argmax(fine, dim=1), torch.argmax(labels_arr[2], dim=1))
         accuracies = torch.tensor(accuracies)
         accuracy = torch.sum(accuracies) / accuracies.shape[0]
         self.log('train_loss', loss, on_epoch=True, prog_bar=True)
@@ -105,11 +101,7 @@ class VGG16_HCNN(L.LightningModule):
         c1, c2, fine = self(images)
         labels_arr = [labels[:, 0:c1.shape[1]], labels[:, c1.shape[1]:c1.shape[1]+c2.shape[1]], labels[:, c1.shape[1]+c2.shape[1]:]]
         accuracies = []
-        for i in range(fine.shape[0]):
-            # Fine prediction accuracy
-            t = fine[i]
-            l = labels_arr[2][i]
-            accuracies.append(torch.argmax(t) == torch.argmax(l))
+        accuracies = torch.eq(torch.argmax(fine, dim=1), torch.argmax(labels_arr[2], dim=1))
         accuracies = torch.tensor(accuracies)
         accuracy = torch.sum(accuracies) / accuracies.shape[0]
         self.log('val_accuracy', accuracy, on_epoch=True, prog_bar=True)

@@ -6,13 +6,14 @@ from modules.vgg16_hcnn_light import VGG16_HCNN
 from modules.branch_vgg_light import BranchVGG16
 from modules.dataset import HierarchicalImageNet
 from modules.resnet_light import ResNetClassifier
+from modules.hresnet_light import HResNet
 from torch.utils.data import DataLoader
 from config import *
 import random
 import wandb
 import numpy as np
 from pytorch_lightning.callbacks import LearningRateFinder, EarlyStopping, RichProgressBar
-
+from torchinfo import summary
 torch.random.manual_seed(42)
 np.random.seed(42)
 random.seed(42)
@@ -73,7 +74,8 @@ if __name__ == "__main__":
             model = BranchVGG16(n_classes=train_dataset.hierarchy_size, n_branches=N_BRANCHES, eps=0, lr=LEARNING_RATE)
         elif MODEL_NAME == "resnet":
             model = ResNetClassifier(num_classes=train_dataset.hierarchy_size[-1], learning_rate=LEARNING_RATE)
-
+        elif MODEL_NAME == "hresnet":
+            model = HResNet(num_classes=train_dataset.hierarchy_size, learning_rate=LEARNING_RATE)
 
 
     trainer.fit(model, train_loader, val_loader)

@@ -57,8 +57,8 @@ class VGG11_HCNN(L.LightningModule):
 
         self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
 
-        self.coarse1_block = CoarseBlock(128 * 56 * 56, n_classes[0])
-        self.coarse2_block = CoarseBlock(256 * 28 * 28, n_classes[1])
+        self.coarse1_block = CoarseBlock(128 * 32 * 32, n_classes[0])
+        self.coarse2_block = CoarseBlock(256 * 16 * 16, n_classes[1])
         self.classifier = Classifier(512 * 7 * 7, n_classes[2])
 
 

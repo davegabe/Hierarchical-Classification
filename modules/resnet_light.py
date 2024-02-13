@@ -8,8 +8,7 @@ from torch.utils.data import DataLoader
 class ResNetClassifier(pl.LightningModule):
     def __init__(self, num_classes, learning_rate=1e-3):
         super().__init__()
-        self.model = models.resnet50()
-        self.model.fc = nn.Linear(self.model.fc.in_features, num_classes)
+        self.model = models.resnet50(num_classes=num_classes)
         self.learning_rate = learning_rate
 
     def forward(self, x):
