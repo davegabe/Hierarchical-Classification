@@ -23,6 +23,7 @@ class CoarseBlock(nn.Module):
 class VGG16_HCNN(L.LightningModule):
     def __init__(self, n_classes, lr=1e-3) -> None:
         super().__init__()
+        self.save_hyperparameters()
 
         self.lr = lr
         self.weights = [0.8,0.1,0.1]
@@ -90,7 +91,7 @@ class VGG16_HCNN(L.LightningModule):
         loss = self.weights[0]*F.cross_entropy(c1, labels_arr[0]) + self.weights[1]*F.cross_entropy(c2, labels_arr[1]) + self.weights[2]*F.cross_entropy(fine, labels_arr[2])
         accuracies = []
         accuracies = torch.eq(torch.argmax(fine, dim=1), torch.argmax(labels_arr[2], dim=1))
-        accuracies = torch.tensor(accuracies)
+        # accuracies = torch.tensor(accuracies)
         accuracy = torch.sum(accuracies) / accuracies.shape[0]
         self.log('train_loss', loss, on_epoch=True, prog_bar=True)
         self.log('train_accuracy', accuracy, on_epoch=True, prog_bar=True)
@@ -102,7 +103,7 @@ class VGG16_HCNN(L.LightningModule):
         labels_arr = [labels[:, 0:c1.shape[1]], labels[:, c1.shape[1]:c1.shape[1]+c2.shape[1]], labels[:, c1.shape[1]+c2.shape[1]:]]
         accuracies = []
         accuracies = torch.eq(torch.argmax(fine, dim=1), torch.argmax(labels_arr[2], dim=1))
-        accuracies = torch.tensor(accuracies)
+        # accuracies = torch.tensor(accuracies)
         accuracy = torch.sum(accuracies) / accuracies.shape[0]
         self.log('val_accuracy', accuracy, on_epoch=True, prog_bar=True)
         return {'accuracy':accuracy}

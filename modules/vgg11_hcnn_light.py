@@ -23,7 +23,7 @@ class CoarseBlock(nn.Module):
 class VGG11_HCNN(L.LightningModule):
     def __init__(self, n_classes, lr=1e-3) -> None:
         super().__init__()
-
+        self.save_hyperparameters()
         self.lr = lr
         self.weights = [0.8,0.1,0.1]
 
