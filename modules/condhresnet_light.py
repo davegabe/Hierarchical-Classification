@@ -196,9 +196,9 @@ class CondHResNet(pl.LightningModule):
         self.coarse2_block = CoarseBlock(512 * 16 * 16, num_classes[1])
 
         for m in self.modules():
-            if isinstance(m, CondConv2D):
-                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
-            elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
+            # if isinstance(m, CondConv2D):
+            #     nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+            if isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 

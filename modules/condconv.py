@@ -46,7 +46,7 @@ class CondConv2D(nn.Module):
 
     def __init__(self, in_channels, out_channels, kernel_size,
                  stride=1, padding=0, dilation=1, groups=1, bias=True,
-                 num_experts=3):
+                 num_experts=8):
         super(CondConv2D, self).__init__()
 
         self.in_channels = in_channels

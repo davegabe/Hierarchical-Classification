@@ -48,12 +48,12 @@ if __name__ == "__main__":
         )
 
 
-    logger = L.loggers.WandbLogger(project="hierarchical-classification") 
+    loggers = [L.loggers.WandbLogger(project="hierarchical-classification"), L.loggers.TensorBoardLogger("models/lightning_logs", name=MODEL_NAME)]
 
 
 
     trainer = L.Trainer(
-        logger=logger,
+        logger=loggers,
         max_epochs=NUM_EPOCHS, 
         benchmark=True, 
         default_root_dir='./models', 
