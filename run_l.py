@@ -1,5 +1,6 @@
 import torch
 import pytorch_lightning as L
+from modules.condhresnet_light import CondHResNet
 from modules.vgg11_hcnn_light import VGG11_HCNN
 from modules.vgg_light import VGG16
 from modules.vgg16_hcnn_light import VGG16_HCNN
@@ -47,8 +48,12 @@ if __name__ == "__main__":
         )
 
 
+    logger = L.loggers.WandbLogger(project="hierarchical-classification") 
+
+
 
     trainer = L.Trainer(
+        logger=logger,
         max_epochs=NUM_EPOCHS, 
         benchmark=True, 
         default_root_dir='./models', 
@@ -76,6 +81,8 @@ if __name__ == "__main__":
             model = ResNetClassifier(num_classes=train_dataset.hierarchy_size[-1], learning_rate=LEARNING_RATE)
         elif MODEL_NAME == "hresnet":
             model = HResNet(num_classes=train_dataset.hierarchy_size, learning_rate=LEARNING_RATE)
+        elif MODEL_NAME == 'condhresnet':
+            model = CondHResNet(num_classes=train_dataset.hierarchy_size, learning_rate=LEARNING_RATE)
 
 
     trainer.fit(model, train_loader, val_loader)
