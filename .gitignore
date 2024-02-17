@@ -9,3 +9,6 @@ settings.json
 dataset.zip
 wandb/
 models/
+hierarchical-classification/
+lightning_logs/
+logs/
