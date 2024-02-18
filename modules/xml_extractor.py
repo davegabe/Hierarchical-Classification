@@ -1,4 +1,4 @@
-import os 
+import os
 import pandas as pd
 
 
@@ -23,5 +23,3 @@ for row in data.iterrows():
 
     # Move the image to the folder
     os.rename(source, destination)
-    
-   

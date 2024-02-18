@@ -5,6 +5,7 @@ from torchvision.models.resnet import Bottleneck, BasicBlock, conv1x1
 import pytorch_lightning as pl
 import torch.nn.functional as F
 
+
 class CoarseBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels):
         super(CoarseBlock, self).__init__()
@@ -17,18 +18,19 @@ class CoarseBlock(nn.Module):
         x = self.linear(x)
         return x
 
+
 class HResNet(pl.LightningModule):
     def __init__(
         self,
-        block = Bottleneck,
-        layers = [3, 4, 6, 3],
+        block=Bottleneck,
+        layers=[3, 4, 6, 3],
         num_classes: int = 1000,
         learning_rate: float = 1e-3,
         zero_init_residual: bool = False,
         groups: int = 1,
         width_per_group: int = 64,
-        replace_stride_with_dilation = None,
-        norm_layer = None,
+        replace_stride_with_dilation=None,
+        norm_layer=None,
     ) -> None:
         super().__init__()
         # _log_api_usage_once(self)
@@ -61,13 +63,14 @@ class HResNet(pl.LightningModule):
         self.fc = nn.Linear(512 * block.expansion, num_classes[2])
 
         self.learning_rate = learning_rate
-        self.weights = [0.8,0.1,0.1]
+        self.weights = [0.8, 0.1, 0.1]
         self.coarse1_block = CoarseBlock(64*64*64, num_classes[0])
         self.coarse2_block = CoarseBlock(512 * 16 * 16, num_classes[1])
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+                nn.init.kaiming_normal_(
+                    m.weight, mode="fan_out", nonlinearity="relu")
             elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
@@ -123,7 +126,6 @@ class HResNet(pl.LightningModule):
 
         return nn.Sequential(*layers)
 
-
     def forward(self, x):
         x = self.conv1(x)
         x = self.bn1(x)
@@ -150,8 +152,9 @@ class HResNet(pl.LightningModule):
     def training_step(self, train_batch, batch_idx):
         images, labels = train_batch
         c1, c2, fine = self(images)
-        labels_arr = [labels[:, 0:c1.shape[1]], labels[:, c1.shape[1]:c1.shape[1]+c2.shape[1]], labels[:, c1.shape[1]+c2.shape[1]:]]
-        loss = self.weights[0]*F.cross_entropy(c1, labels_arr[0]) + self.weights[1]*F.cross_entropy(c2, labels_arr[1]) + self.weights[2]*F.cross_entropy(fine, labels_arr[2])
+        labels_arr = [labels[:, 0:c1.shape[1]], labels[:, c1.shape[1]                                                       :c1.shape[1]+c2.shape[1]], labels[:, c1.shape[1]+c2.shape[1]:]]
+        loss = self.weights[0]*F.cross_entropy(c1, labels_arr[0]) + self.weights[1]*F.cross_entropy(
+            c2, labels_arr[1]) + self.weights[2]*F.cross_entropy(fine, labels_arr[2])
         accuracies = []
         for i in range(fine.shape[0]):
             # Fine prediction accuracy
@@ -162,13 +165,14 @@ class HResNet(pl.LightningModule):
         accuracy = torch.sum(accuracies) / accuracies.shape[0]
         self.log('train_loss', loss, on_epoch=True, prog_bar=True)
         self.log('train_accuracy', accuracy, on_epoch=True, prog_bar=True)
-        return {'loss':loss, 'accuracy':accuracy}
-    
+        return {'loss': loss, 'accuracy': accuracy}
+
     def validation_step(self, val_batch, batch_idx):
         images, labels = val_batch
         c1, c2, fine = self(images)
-        labels_arr = [labels[:, 0:c1.shape[1]], labels[:, c1.shape[1]:c1.shape[1]+c2.shape[1]], labels[:, c1.shape[1]+c2.shape[1]:]]
-        loss = self.weights[0]*F.cross_entropy(c1, labels_arr[0]) + self.weights[1]*F.cross_entropy(c2, labels_arr[1]) + self.weights[2]*F.cross_entropy(fine, labels_arr[2])
+        labels_arr = [labels[:, 0:c1.shape[1]], labels[:, c1.shape[1]                                                       :c1.shape[1]+c2.shape[1]], labels[:, c1.shape[1]+c2.shape[1]:]]
+        loss = self.weights[0]*F.cross_entropy(c1, labels_arr[0]) + self.weights[1]*F.cross_entropy(
+            c2, labels_arr[1]) + self.weights[2]*F.cross_entropy(fine, labels_arr[2])
         accuracies = []
         for i in range(fine.shape[0]):
             # Fine prediction accuracy
@@ -179,10 +183,10 @@ class HResNet(pl.LightningModule):
         accuracy = torch.sum(accuracies) / accuracies.shape[0]
         self.log('val_loss', loss, on_epoch=True, prog_bar=True)
         self.log('val_accuracy', accuracy, on_epoch=True, prog_bar=True)
-        return {'val_loss':loss, 'val_accuracy':accuracy}
-    
+        return {'val_loss': loss, 'val_accuracy': accuracy}
+
     def on_train_epoch_end(self) -> None:
         if self.current_epoch == 5:
-            self.weights = [0.1,0.8,0.1]
+            self.weights = [0.1, 0.8, 0.1]
         elif self.current_epoch == 10:
-            self.weights = [0.1,0.1,0.8]
+            self.weights = [0.1, 0.1, 0.8]

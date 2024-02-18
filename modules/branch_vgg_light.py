@@ -2,12 +2,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 import itertools
-from modules.vgg import Conv2dBlock, MaxPool2dBlock, Classifier
+from modules.vgg_light import Conv2dBlock, MaxPool2dBlock, Classifier
 from config import BRANCH_SELECTOR, L1_REGULARIZATION, SIMILARITY_REGULARIZATION, LOG_STEP, PRIVILEGED
-import random
 import wandb
 import pytorch_lightning as L
-from modules.loss import HierarchicalLoss
+
 
 class BranchSelector(nn.Module):
     def __init__(self, n_classes: int, n_branches: int):
@@ -24,7 +23,6 @@ class BranchSelector(nn.Module):
         self.linear = nn.Linear(n_classes, n_branches)
         self.activation = nn.Sigmoid()
         print(f"BranchSelector: {n_classes} -> {n_branches} branches")
-
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -64,7 +62,7 @@ class BranchSelector(nn.Module):
         # # Compute similarity loss
         # for i, j in combinations:
         #     sim += F.cosine_similarity(weights[i], weights[j])
-            
+
         return l1 * L1_REGULARIZATION + sim * SIMILARITY_REGULARIZATION
 
 
@@ -127,7 +125,7 @@ class Branch(nn.Module):
 
 
 class BranchVGG16(L.LightningModule):
-    def __init__(self, n_classes: list[int], n_branches: int = 1, eps: float = 0, lr = 1e-3):
+    def __init__(self, n_classes: list[int], n_branches: int = 1, eps: float = 0, lr=1e-3):
         """
         VGG16 model with n branches and coarse classifiers.
 
@@ -141,13 +139,11 @@ class BranchVGG16(L.LightningModule):
         assert len(n_classes) == 3
         self.weights = [0.5, 0, 0.5]
 
-
         self.n_classes = n_classes
         self.n_branches = n_branches
         self.eps = eps
         self.lr = lr
         self.step = 0
-        # self.loss = HierarchicalLoss(n_classes)
 
         # Block 1
         self.block_1 = nn.Sequential(
@@ -266,23 +262,25 @@ class BranchVGG16(L.LightningModule):
     def regularize(self) -> torch.Tensor:
         """
         Compute regularization loss.
-        
+
         Returns:
             torch.Tensor: Regularization loss.
         """
         return self.branch_selector.regularize()
-    
+
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
         return optimizer
-    
+
     def training_step(self, train_batch, batch_idx):
         images, labels = train_batch
-        labels_arr = [labels[:, :self.n_classes[1]], labels[:, self.n_classes[1]:self.n_classes[1]+self.n_classes[2]], labels[:, self.n_classes[1]+self.n_classes[2]:]]
-        c1_true = torch.tensor(labels_arr[2]) # To fix
+        labels_arr = [labels[:, :self.n_classes[1]], labels[:, self.n_classes[1]
+            :self.n_classes[1]+self.n_classes[2]], labels[:, self.n_classes[1]+self.n_classes[2]:]]
+        c1_true = torch.tensor(labels_arr[2])  # To fix
         c1, c2, fine = self(images, c1_true, training=True)
-        loss = self.weights[0]*F.cross_entropy(c1, labels_arr[0]) + self.weights[1]*F.cross_entropy(c2, labels_arr[1]) + self.weights[2]*F.cross_entropy(fine, labels_arr[2])
-        
+        loss = self.weights[0]*F.cross_entropy(c1, labels_arr[0]) + self.weights[1]*F.cross_entropy(
+            c2, labels_arr[1]) + self.weights[2]*F.cross_entropy(fine, labels_arr[2])
+
         # Compute accuracy
         fine_preds = torch.argmax(fine, dim=1)
         fine_labels = torch.argmax(labels_arr[2], dim=1)
@@ -293,14 +291,16 @@ class BranchVGG16(L.LightningModule):
 
         self.log('train_loss', loss, prog_bar=True, on_epoch=True)
         self.log('train_accuracy', accuracy, prog_bar=True, on_epoch=True)
-        return {'loss':loss, 'accuracy':accuracy}
-    
+        return {'loss': loss, 'accuracy': accuracy}
+
     def validation_step(self, val_batch, batch_idx):
         images, labels = val_batch
         c1, c2, fine = self(images)
-        labels_arr = [labels[:, 0:c1.shape[1]], labels[:, c1.shape[1]:c1.shape[1]+c2.shape[1]], labels[:, c1.shape[1]+c2.shape[1]:]]
-        loss = self.weights[0]*F.cross_entropy(c1, labels_arr[0]) + self.weights[1]*F.cross_entropy(c2, labels_arr[1]) + self.weights[2]*F.cross_entropy(fine, labels_arr[2])
-        
+        labels_arr = [labels[:, 0:c1.shape[1]], labels[:, c1.shape[1]
+            :c1.shape[1]+c2.shape[1]], labels[:, c1.shape[1]+c2.shape[1]:]]
+        loss = self.weights[0]*F.cross_entropy(c1, labels_arr[0]) + self.weights[1]*F.cross_entropy(
+            c2, labels_arr[1]) + self.weights[2]*F.cross_entropy(fine, labels_arr[2])
+
         # Compute accuracy
         fine_preds = torch.argmax(fine, dim=1)
         fine_labels = torch.argmax(labels_arr[2], dim=1)
@@ -308,5 +308,4 @@ class BranchVGG16(L.LightningModule):
 
         self.log('val_loss', loss, prog_bar=True, on_epoch=True)
         self.log('val_accuracy', accuracy, prog_bar=True, on_epoch=True)
-        return {'loss':loss, 'accuracy':accuracy}
-    
+        return {'loss': loss, 'accuracy': accuracy}

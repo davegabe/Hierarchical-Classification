@@ -15,20 +15,24 @@ import wandb
 import numpy as np
 from pytorch_lightning.callbacks import LearningRateFinder, EarlyStopping, RichProgressBar
 from torchinfo import summary
+import nltk
 torch.random.manual_seed(42)
 np.random.seed(42)
 random.seed(42)
-    
+
 torch.set_float32_matmul_precision('medium')
+
 if __name__ == "__main__":
-    
+    # Download the WordNet package
+    nltk.download('wordnet')
+
     random_state = 42
 
-    train_dataset = HierarchicalImageNet(split=TRAIN_DATASET_PATH, only_leaves= (MODEL_NAME=='vgg16' or MODEL_NAME=='resnet'),random_state=random_state)
-    val_dataset = HierarchicalImageNet(split=VAL_DATASET_PATH, only_leaves= (MODEL_NAME=='vgg16' or MODEL_NAME=='resnet'),random_state=random_state)
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=11)
+    only_leaves = MODEL_NAME == 'vgg16' or MODEL_NAME == 'resnet'
+    train_dataset = HierarchicalImageNet(split=TRAIN_DATASET_PATH, only_leaves=only_leaves, random_state=random_state)
+    val_dataset = HierarchicalImageNet(split=VAL_DATASET_PATH, only_leaves=only_leaves, random_state=random_state)
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4, persistent_workers=True)
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, num_workers=11)
-
 
     if USE_WANDB:
         # WandB
@@ -43,30 +47,27 @@ if __name__ == "__main__":
                 "batch_size": BATCH_SIZE,
                 "limit_classes": LIMIT_CLASSES,
                 "image_size": IMAGE_SIZE,
-                # "loss_weights": loss.weights if MODEL_NAME=='branch_vgg16' else None 
+                # "loss_weights": loss.weights if MODEL_NAME=='branch_vgg16' else None
             }
         )
 
-
-    loggers = [L.loggers.WandbLogger(project="hierarchical-classification"), L.loggers.TensorBoardLogger("models/lightning_logs", name=MODEL_NAME)]
-
-
+    loggers = [L.loggers.WandbLogger(project="hierarchical-classification"),
+               L.loggers.TensorBoardLogger("models/lightning_logs", name=MODEL_NAME)]
 
     trainer = L.Trainer(
         logger=loggers,
-        max_epochs=NUM_EPOCHS, 
-        benchmark=True, 
-        default_root_dir='./models', 
-        enable_checkpointing=True, 
-        # precision="bf16-mixed", 
+        max_epochs=NUM_EPOCHS,
+        benchmark=True,
+        default_root_dir='./models',
+        enable_checkpointing=True,
+        # precision="bf16-mixed",
         accumulate_grad_batches=4,
         callbacks=[
             LearningRateFinder(min_lr=1e-5, max_lr=1e-1),
             # EarlyStopping('val_loss', mode='min', min_delta='0.005')
             RichProgressBar()
-            ]
-        )
-
+        ]
+    )
 
     with trainer.init_module():
         if MODEL_NAME == "vgg11_hcnn":
@@ -83,6 +84,5 @@ if __name__ == "__main__":
             model = HResNet(num_classes=train_dataset.hierarchy_size, learning_rate=LEARNING_RATE)
         elif MODEL_NAME == 'condhresnet':
             model = CondHResNet(num_classes=train_dataset.hierarchy_size, learning_rate=LEARNING_RATE)
-
 
     trainer.fit(model, train_loader, val_loader)

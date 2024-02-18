@@ -1,15 +1,12 @@
 from torch.utils.data import Dataset
 from nltk.corpus import wordnet as wn
-import nltk
-from nltk.corpus.reader.wordnet import Synset
 from torchvision.transforms import v2
 import pandas as pd
-import numpy as np
 import os
 import torch
-import matplotlib.pyplot as plt
 from PIL import Image
 from config import IMAGE_SIZE, LIMIT_IMAGES, LIMIT_CLASSES
+
 
 class HierarchicalImageNet(Dataset):
     def __init__(self, split: str, root: str = "./dataset/", only_leaves: bool = False, random_state=42) -> None:
@@ -30,21 +27,20 @@ class HierarchicalImageNet(Dataset):
 
         self.depth_class_to_index = self.get_depth_class_to_index()
 
-
     def __len__(self) -> int:
         return len(self.imagenet)
-    
+
     def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor]:
         image_path, class_name = self.imagenet[index]
         image = Image.open(image_path, mode="r").convert("RGB")
         transform = v2.Compose([
-                # v2.Resize(IMAGE_SIZE),
-                v2.RandomResizedCrop(size=IMAGE_SIZE, antialias=True),
-                v2.RandomHorizontalFlip(p=0.5),
-                v2.RandomRotation(135),
-                v2.ToImage(),
-                v2.ToDtype(torch.float32, scale=True),
-            ])
+            # v2.Resize(IMAGE_SIZE),
+            v2.RandomResizedCrop(size=IMAGE_SIZE, antialias=True),
+            v2.RandomHorizontalFlip(p=0.5),
+            v2.RandomRotation(135),
+            v2.ToImage(),
+            v2.ToDtype(torch.float32, scale=True),
+        ])
         image = transform(image)
 
         class_index = self.classes_index[class_name]
@@ -71,7 +67,6 @@ class HierarchicalImageNet(Dataset):
 
         return image, hierarchy_one_hot
 
-
     def get_depth_class_to_index(self) -> dict[int, dict[str, int]]:
         """
         For each depth create a class to index mapping.
@@ -95,11 +90,11 @@ class HierarchicalImageNet(Dataset):
         hierarchy = hierarchy.sample(n=LIMIT_CLASSES, random_state=self.random_state).reset_index(drop=True)
         return hierarchy
 
-    def get_classes(self) -> tuple[list[str], dict[str,int]]:
+    def get_classes(self) -> tuple[list[str], dict[str, int]]:
         # Get 3rd column from the hierarchy
         classes = []
         classes_index = {}
-        classes_names = self.hierarchy.iloc[:,2].unique().tolist()
+        classes_names = self.hierarchy.iloc[:, 2].unique().tolist()
         print(f'Number of classes: {len(classes_names)}')
         for i, class_name in enumerate(classes_names):
             synset = wn.synset(class_name)
@@ -108,8 +103,8 @@ class HierarchicalImageNet(Dataset):
             classes.append(f"{pos}{offset:08d}")
             classes_index[f"{pos}{offset:08d}"] = i
         return classes, classes_index
-    
-    def get_imagenet(self) -> list[tuple[str,str]]:
+
+    def get_imagenet(self) -> list[tuple[str, str]]:
         imagenet_path = os.path.join(self.split)
         imagenet = []
         for class_name in self.classes:
@@ -121,8 +116,8 @@ class HierarchicalImageNet(Dataset):
 
         return imagenet
 
+
 if __name__ == "__main__":
     dataset = HierarchicalImageNet("/run/media/riccardo/ea24b431-b1e5-4ec3-95b0-fcbaf83641fb/ImageNet/train")
     # print(dataset.get_depth_class_to_index())
     # print(dataset.hierarchy)[]
-

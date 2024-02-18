@@ -4,6 +4,7 @@ import torch.optim as optim
 import torchvision.models as models
 import pytorch_lightning as pl
 
+
 class ResNetClassifier(pl.LightningModule):
     def __init__(self, num_classes, learning_rate=1e-3):
         super().__init__()
@@ -20,8 +21,7 @@ class ResNetClassifier(pl.LightningModule):
 
         preds = torch.argmax(logits, dim=1)
         acc = (preds == y).float().mean()
-        self.log('train_accuracy', acc,prog_bar=True, on_step=False, on_epoch=True)
-
+        self.log('train_accuracy', acc, prog_bar=True, on_step=False, on_epoch=True)
 
         self.log('train_loss', loss)
         return loss
@@ -33,7 +33,7 @@ class ResNetClassifier(pl.LightningModule):
 
         preds = torch.argmax(logits, dim=1)
         acc = (preds == y).float().mean()
-        self.log('val_accuracy', acc,prog_bar=True, on_step=False, on_epoch=True)
+        self.log('val_accuracy', acc, prog_bar=True, on_step=False, on_epoch=True)
 
         self.log('val_loss', loss)
         return loss
@@ -41,4 +41,3 @@ class ResNetClassifier(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = optim.Adam(self.parameters(), lr=self.learning_rate)
         return optimizer
-

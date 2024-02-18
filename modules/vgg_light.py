@@ -1,13 +1,9 @@
 import pytorch_lightning as L
-import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
-from modules.vgg import *
-from modules.dataset import HierarchicalImageNet
+from modules.vgg_light import *
 from config import *
-
 
 
 class Classifier(nn.Module):
@@ -53,7 +49,6 @@ class MaxPool2dBlock(nn.Module):
 
     def forward(self, x):
         return self.maxpool(x)
-
 
 
 class VGG16(L.LightningModule):
@@ -140,11 +135,11 @@ class VGG16(L.LightningModule):
         fine = self.fine(x)
 
         return fine
-    
+
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
         return optimizer
-    
+
     def training_step(self, batch, batch_idx):
         images, labels = batch
         logits = self(images)
@@ -154,7 +149,7 @@ class VGG16(L.LightningModule):
         self.log('train_loss', loss, on_epoch=True, prog_bar=True)
         self.log('train_accuracy', accuracy, on_epoch=True, prog_bar=True)
         return {'loss': loss, 'accuracy': accuracy}
-    
+
     def validation_step(self, batch, batch_idx):
         images, labels = batch
         logits = self(images)
