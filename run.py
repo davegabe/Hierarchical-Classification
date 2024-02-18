@@ -6,23 +6,19 @@ from modules.vgg import VGG16
 from modules.branch_vgg import BranchVGG16
 from modules.dataset import HierarchicalImageNet
 from modules.loss import HierarchicalLoss
-from torchvision.models import vgg16_bn
 from train import train_vgg, train_branch_vgg, train_hcnn
 from config import MODEL_NAME, BRANCH_SELECTOR, N_BRANCHES, LEARNING_RATE, NUM_EPOCHS, BATCH_SIZE, LIMIT_CLASSES, IMAGE_SIZE
 from torchinfo import summary
-import wandb
-from robustness import datasets
-from robustness.tools.imagenet_helpers import ImageNetHierarchy
-import os
+import wandb 
 import nltk
-from nltk.corpus import wordnet as wn
+nltk.download('wordnet')
 
 def main():
     # Device configuration
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    train_path= "/home/riccardo/Documents/train"
-    val_path = "dataset/validation"
+    train_path= "ILSVRC2012_img_train" # Change this to the path of the training set
+    val_path = "ILSVRC2012_img_val" # Change this to the path of the validation set
 
     # in_hier = ImageNetHierarchy(in_path, in_info_path)
 

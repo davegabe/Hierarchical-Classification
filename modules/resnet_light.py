@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.optim as optim
 import torchvision.models as models
 import pytorch_lightning as pl
-from torch.utils.data import DataLoader
 
 class ResNetClassifier(pl.LightningModule):
     def __init__(self, num_classes, learning_rate=1e-3):

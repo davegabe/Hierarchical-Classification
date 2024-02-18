@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.optim as optim
 from torchvision.models.resnet import Bottleneck, BasicBlock, conv1x1
 import pytorch_lightning as pl
-from torch.utils.data import DataLoader
 import torch.nn.functional as F
 
 class CoarseBlock(nn.Module):
