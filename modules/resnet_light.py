@@ -21,10 +21,10 @@ class ResNetClassifier(pl.LightningModule):
 
         preds = torch.argmax(logits, dim=1)
         acc = (preds == y).float().mean()
-        self.log('train_accuracy', acc, prog_bar=True, on_step=False, on_epoch=True)
 
+        self.log('train_accuracy', acc, prog_bar=True, on_step=False, on_epoch=True)
         self.log('train_loss', loss)
-        return loss
+        return {'loss': loss, 'accuracy': acc}
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
@@ -33,10 +33,10 @@ class ResNetClassifier(pl.LightningModule):
 
         preds = torch.argmax(logits, dim=1)
         acc = (preds == y).float().mean()
-        self.log('val_accuracy', acc, prog_bar=True, on_step=False, on_epoch=True)
 
+        self.log('val_accuracy', acc, prog_bar=True, on_step=False, on_epoch=True)
         self.log('val_loss', loss)
-        return loss
+        return {'val_loss': loss, 'val_accuracy': acc}
 
     def configure_optimizers(self):
         optimizer = optim.Adam(self.parameters(), lr=self.learning_rate)

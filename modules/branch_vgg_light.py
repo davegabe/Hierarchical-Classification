@@ -1,7 +1,7 @@
 import torch.nn as nn
-import torch.nn.functional as F
 import torch
 import itertools
+from modules.utils import accuracy_fn, loss_fn
 from modules.vgg_light import Conv2dBlock, MaxPool2dBlock, Classifier
 from config import BRANCH_SELECTOR, L1_REGULARIZATION, SIMILARITY_REGULARIZATION, LOG_STEP, PRIVILEGED
 import wandb
@@ -253,7 +253,9 @@ class BranchVGG16(L.LightningModule):
                 # Log the branch selector weights for each output node
                 weight_matrix = self.branch_selector.linear.weight.detach().cpu().numpy()
                 for i, param in enumerate(weight_matrix):
-                    wandb.log({f"bs_{i + 1}_weights": wandb.Histogram(param)}, step=self.step)
+                    wandb.log({
+                        f"bs_{i + 1}_weights": wandb.Histogram(param)
+                    }, step=self.step)
         self.step += 1
 
         # Concatenate coarse and fine predictions
@@ -274,17 +276,19 @@ class BranchVGG16(L.LightningModule):
 
     def training_step(self, train_batch, batch_idx):
         images, labels = train_batch
-        labels_arr = [labels[:, :self.n_classes[1]], labels[:, self.n_classes[1]
-            :self.n_classes[1]+self.n_classes[2]], labels[:, self.n_classes[1]+self.n_classes[2]:]]
+        labels_arr = [
+            labels[:, :self.n_classes[1]],
+            labels[:, self.n_classes[1]:self.n_classes[1]+self.n_classes[2]],
+            labels[:, self.n_classes[1]+self.n_classes[2]:]
+        ]
         c1_true = torch.tensor(labels_arr[2])  # To fix
         c1, c2, fine = self(images, c1_true, training=True)
-        loss = self.weights[0]*F.cross_entropy(c1, labels_arr[0]) + self.weights[1]*F.cross_entropy(
-            c2, labels_arr[1]) + self.weights[2]*F.cross_entropy(fine, labels_arr[2])
+
+        # Compute loss
+        loss = loss_fn(self.weights, c1, c2, fine, labels_arr)
 
         # Compute accuracy
-        fine_preds = torch.argmax(fine, dim=1)
-        fine_labels = torch.argmax(labels_arr[2], dim=1)
-        accuracy = torch.sum(fine_preds == fine_labels).float() / fine_preds.shape[0]
+        accuracy = accuracy_fn(fine, labels_arr)
 
         if BRANCH_SELECTOR == 'learnable':
             loss += self.regularize()
@@ -296,16 +300,18 @@ class BranchVGG16(L.LightningModule):
     def validation_step(self, val_batch, batch_idx):
         images, labels = val_batch
         c1, c2, fine = self(images)
-        labels_arr = [labels[:, 0:c1.shape[1]], labels[:, c1.shape[1]
-            :c1.shape[1]+c2.shape[1]], labels[:, c1.shape[1]+c2.shape[1]:]]
-        loss = self.weights[0]*F.cross_entropy(c1, labels_arr[0]) + self.weights[1]*F.cross_entropy(
-            c2, labels_arr[1]) + self.weights[2]*F.cross_entropy(fine, labels_arr[2])
+        labels_arr = [
+            labels[:, 0:c1.shape[1]],
+            labels[:, c1.shape[1]:c1.shape[1]+c2.shape[1]],
+            labels[:, c1.shape[1]+c2.shape[1]:]
+        ]
+
+        # Compute loss
+        loss = loss_fn(self.weights, c1, c2, fine, labels_arr)
 
         # Compute accuracy
-        fine_preds = torch.argmax(fine, dim=1)
-        fine_labels = torch.argmax(labels_arr[2], dim=1)
-        accuracy = torch.sum(fine_preds == fine_labels).float() / fine_preds.shape[0]
+        accuracy = accuracy_fn(fine, labels_arr)
 
         self.log('val_loss', loss, prog_bar=True, on_epoch=True)
         self.log('val_accuracy', accuracy, prog_bar=True, on_epoch=True)
-        return {'loss': loss, 'accuracy': accuracy}
+        return {'val_loss': loss, 'val_accuracy': accuracy}

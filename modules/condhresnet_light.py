@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import pytorch_lightning as pl
-import torch.nn.functional as F
 from modules.condconv import CondConv2D
+from modules.utils import accuracy_fn, loss_fn
 
 
 def conv3x3(in_planes: int, out_planes: int, stride: int = 1, groups: int = 1, dilation: int = 1) -> nn.Conv2d:
@@ -33,11 +33,11 @@ class BasicBlock(nn.Module):
         inplanes: int,
         planes: int,
         stride: int = 1,
-        downsample = None,
+        downsample=None,
         groups: int = 1,
         base_width: int = 64,
         dilation: int = 1,
-        norm_layer = None,
+        norm_layer=None,
     ) -> None:
         super().__init__()
         if norm_layer is None:
@@ -88,11 +88,11 @@ class Bottleneck(nn.Module):
         inplanes: int,
         planes: int,
         stride: int = 1,
-        downsample = None,
+        downsample=None,
         groups: int = 1,
         base_width: int = 64,
         dilation: int = 1,
-        norm_layer = None,
+        norm_layer=None,
     ) -> None:
         super().__init__()
         if norm_layer is None:
@@ -109,7 +109,7 @@ class Bottleneck(nn.Module):
         self.downsample = downsample
         self.stride = stride
 
-    def forward(self, x) :
+    def forward(self, x):
         identity = x
 
         out = self.conv1(x)
@@ -132,7 +132,6 @@ class Bottleneck(nn.Module):
         return out
 
 
-
 class CoarseBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels):
         super(CoarseBlock, self).__init__()
@@ -145,18 +144,19 @@ class CoarseBlock(nn.Module):
         x = self.linear(x)
         return x
 
+
 class CondHResNet(pl.LightningModule):
     def __init__(
         self,
-        block = Bottleneck,
-        layers = [3, 4, 6, 3],
+        block=Bottleneck,
+        layers=[3, 4, 6, 3],
         num_classes: int = 1000,
         learning_rate: float = 1e-3,
         zero_init_residual: bool = False,
         groups: int = 1,
         width_per_group: int = 64,
-        replace_stride_with_dilation = None,
-        norm_layer = None,
+        replace_stride_with_dilation=None,
+        norm_layer=None,
     ) -> None:
         super().__init__()
         # _log_api_usage_once(self)
@@ -190,7 +190,7 @@ class CondHResNet(pl.LightningModule):
         self.fc = nn.Linear(512 * block.expansion, num_classes[2])
 
         self.learning_rate = learning_rate
-        self.weights = [0.8,0.1,0.1]
+        self.weights = [0.8, 0.1, 0.1]
         self.coarse1_block = CoarseBlock(64*64*64, num_classes[0])
         self.coarse2_block = CoarseBlock(512 * 16 * 16, num_classes[1])
 
@@ -252,7 +252,6 @@ class CondHResNet(pl.LightningModule):
 
         return nn.Sequential(*layers)
 
-
     def forward(self, x):
         x = self.conv1(x)
         x = self.bn1(x)
@@ -279,39 +278,43 @@ class CondHResNet(pl.LightningModule):
     def training_step(self, train_batch, batch_idx):
         images, labels = train_batch
         c1, c2, fine = self(images)
-        labels_arr = [labels[:, 0:c1.shape[1]], labels[:, c1.shape[1]:c1.shape[1]+c2.shape[1]], labels[:, c1.shape[1]+c2.shape[1]:]]
-        loss = self.weights[0]*F.cross_entropy(c1, labels_arr[0]) + self.weights[1]*F.cross_entropy(c2, labels_arr[1]) + self.weights[2]*F.cross_entropy(fine, labels_arr[2])
-        accuracies = []
-        for i in range(fine.shape[0]):
-            # Fine prediction accuracy
-            t = fine[i]  # Shape: (batch_size, size)
-            l = labels_arr[2][i]  # Shape: (batch_size, size)
-            accuracies.append(torch.argmax(t) == torch.argmax(l))
-        accuracies = torch.tensor(accuracies)
-        accuracy = torch.sum(accuracies) / accuracies.shape[0]
+        labels_arr = [
+            labels[:, 0:c1.shape[1]],
+            labels[:, c1.shape[1]:c1.shape[1]+c2.shape[1]],
+            labels[:, c1.shape[1]+c2.shape[1]:]
+        ]
+
+        # Compute loss
+        loss = loss_fn(self.weights, c1, c2, fine, labels_arr)
+
+        # Compute accuracy
+        accuracy = accuracy_fn(fine, labels_arr)
+
         self.log('train_loss', loss, on_epoch=True, prog_bar=True)
         self.log('train_accuracy', accuracy, on_epoch=True, prog_bar=True)
-        return {'loss':loss, 'accuracy':accuracy}
-    
+        return {'loss': loss, 'accuracy': accuracy}
+
     def validation_step(self, val_batch, batch_idx):
         images, labels = val_batch
         c1, c2, fine = self(images)
-        labels_arr = [labels[:, 0:c1.shape[1]], labels[:, c1.shape[1]:c1.shape[1]+c2.shape[1]], labels[:, c1.shape[1]+c2.shape[1]:]]
-        loss = self.weights[0]*F.cross_entropy(c1, labels_arr[0]) + self.weights[1]*F.cross_entropy(c2, labels_arr[1]) + self.weights[2]*F.cross_entropy(fine, labels_arr[2])
-        accuracies = []
-        for i in range(fine.shape[0]):
-            # Fine prediction accuracy
-            t = fine[i]
-            l = labels_arr[2][i]
-            accuracies.append(torch.argmax(t) == torch.argmax(l))
-        accuracies = torch.tensor(accuracies)
-        accuracy = torch.sum(accuracies) / accuracies.shape[0]
+        labels_arr = [
+            labels[:, 0:c1.shape[1]],
+            labels[:, c1.shape[1]:c1.shape[1]+c2.shape[1]],
+            labels[:, c1.shape[1]+c2.shape[1]:]
+        ]
+
+        # Compute loss
+        loss = loss_fn(self.weights, c1, c2, fine, labels_arr)
+
+        # Compute accuracy
+        accuracy = accuracy_fn(fine, labels_arr)
+
         self.log('val_loss', loss, on_epoch=True, prog_bar=True)
         self.log('val_accuracy', accuracy, on_epoch=True, prog_bar=True)
-        return {'val_loss':loss, 'val_accuracy':accuracy}
-    
+        return {'val_loss': loss, 'val_accuracy': accuracy}
+
     def on_train_epoch_end(self) -> None:
         if self.current_epoch == 5:
-            self.weights = [0.1,0.8,0.1]
+            self.weights = [0.1, 0.8, 0.1]
         elif self.current_epoch == 10:
-            self.weights = [0.1,0.1,0.8]
+            self.weights = [0.1, 0.1, 0.8]

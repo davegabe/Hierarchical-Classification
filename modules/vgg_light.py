@@ -146,6 +146,7 @@ class VGG16(L.LightningModule):
         loss = F.cross_entropy(logits, labels)
         correct = torch.sum(torch.argmax(logits, dim=1) == labels)
         accuracy = correct / logits.shape[0]
+        
         self.log('train_loss', loss, on_epoch=True, prog_bar=True)
         self.log('train_accuracy', accuracy, on_epoch=True, prog_bar=True)
         return {'loss': loss, 'accuracy': accuracy}
@@ -156,6 +157,7 @@ class VGG16(L.LightningModule):
         loss = F.cross_entropy(logits, labels)
         correct = torch.sum(torch.argmax(logits, dim=1) == labels)
         accuracy = correct / logits.shape[0]
+
         self.log('val_loss', loss, on_epoch=True, prog_bar=True)
         self.log('val_accuracy', accuracy, on_epoch=True, prog_bar=True)
-        return {'loss': loss, 'accuracy': accuracy}
+        return {'val_loss': loss, 'val_accuracy': accuracy}

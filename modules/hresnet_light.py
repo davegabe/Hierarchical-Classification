@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torchvision.models.resnet import Bottleneck, BasicBlock, conv1x1
 import pytorch_lightning as pl
-import torch.nn.functional as F
+from modules.utils import accuracy_fn, loss_fn
 
 
 class CoarseBlock(nn.Module):
@@ -152,17 +152,18 @@ class HResNet(pl.LightningModule):
     def training_step(self, train_batch, batch_idx):
         images, labels = train_batch
         c1, c2, fine = self(images)
-        labels_arr = [labels[:, 0:c1.shape[1]], labels[:, c1.shape[1]                                                       :c1.shape[1]+c2.shape[1]], labels[:, c1.shape[1]+c2.shape[1]:]]
-        loss = self.weights[0]*F.cross_entropy(c1, labels_arr[0]) + self.weights[1]*F.cross_entropy(
-            c2, labels_arr[1]) + self.weights[2]*F.cross_entropy(fine, labels_arr[2])
-        accuracies = []
-        for i in range(fine.shape[0]):
-            # Fine prediction accuracy
-            t = fine[i]  # Shape: (batch_size, size)
-            l = labels_arr[2][i]  # Shape: (batch_size, size)
-            accuracies.append(torch.argmax(t) == torch.argmax(l))
-        accuracies = torch.tensor(accuracies)
-        accuracy = torch.sum(accuracies) / accuracies.shape[0]
+        labels_arr = [
+            labels[:, 0:c1.shape[1]],
+            labels[:, c1.shape[1]:c1.shape[1]+c2.shape[1]],
+            labels[:, c1.shape[1]+c2.shape[1]:]
+        ]
+
+        # Compute loss
+        loss = loss_fn(self.weights, c1, c2, fine, labels_arr)
+
+        # Compute accuracy
+        accuracy = accuracy_fn(fine, labels_arr)
+
         self.log('train_loss', loss, on_epoch=True, prog_bar=True)
         self.log('train_accuracy', accuracy, on_epoch=True, prog_bar=True)
         return {'loss': loss, 'accuracy': accuracy}
@@ -170,17 +171,18 @@ class HResNet(pl.LightningModule):
     def validation_step(self, val_batch, batch_idx):
         images, labels = val_batch
         c1, c2, fine = self(images)
-        labels_arr = [labels[:, 0:c1.shape[1]], labels[:, c1.shape[1]                                                       :c1.shape[1]+c2.shape[1]], labels[:, c1.shape[1]+c2.shape[1]:]]
-        loss = self.weights[0]*F.cross_entropy(c1, labels_arr[0]) + self.weights[1]*F.cross_entropy(
-            c2, labels_arr[1]) + self.weights[2]*F.cross_entropy(fine, labels_arr[2])
-        accuracies = []
-        for i in range(fine.shape[0]):
-            # Fine prediction accuracy
-            t = fine[i]
-            l = labels_arr[2][i]
-            accuracies.append(torch.argmax(t) == torch.argmax(l))
-        accuracies = torch.tensor(accuracies)
-        accuracy = torch.sum(accuracies) / accuracies.shape[0]
+        labels_arr = [
+            labels[:, 0:c1.shape[1]],
+            labels[:, c1.shape[1]:c1.shape[1]+c2.shape[1]],
+            labels[:, c1.shape[1]+c2.shape[1]:]
+        ]
+
+        # Compute loss
+        loss = loss_fn(self.weights, c1, c2, fine, labels_arr)
+
+        # Compute accuracy
+        accuracy = accuracy_fn(fine, labels_arr)
+
         self.log('val_loss', loss, on_epoch=True, prog_bar=True)
         self.log('val_accuracy', accuracy, on_epoch=True, prog_bar=True)
         return {'val_loss': loss, 'val_accuracy': accuracy}
