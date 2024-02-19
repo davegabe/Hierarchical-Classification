@@ -32,7 +32,7 @@ if __name__ == "__main__":
     train_dataset = HierarchicalImageNet(split=TRAIN_DATASET_PATH, only_leaves=only_leaves, random_state=random_state)
     val_dataset = HierarchicalImageNet(split=VAL_DATASET_PATH, only_leaves=only_leaves, random_state=random_state)
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4, persistent_workers=True)
-    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, num_workers=11)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, num_workers=4, persistent_workers=True)
 
     if USE_WANDB:
         # WandB
@@ -63,7 +63,7 @@ if __name__ == "__main__":
         # precision="bf16-mixed",
         accumulate_grad_batches=4,
         callbacks=[
-            LearningRateFinder(min_lr=1e-5, max_lr=1e-1),
+            LearningRateFinder(min_lr=1e-6, max_lr=1e-3),
             # EarlyStopping('val_loss', mode='min', min_delta='0.005')
             RichProgressBar()
         ]

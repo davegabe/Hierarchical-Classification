@@ -20,11 +20,11 @@ class ResNetClassifier(pl.LightningModule):
         loss = nn.CrossEntropyLoss()(logits, y)
 
         preds = torch.argmax(logits, dim=1)
-        acc = (preds == y).float().mean()
+        accuracy = (preds == y).float().mean()
 
-        self.log('train_accuracy', acc, prog_bar=True, on_step=False, on_epoch=True)
-        self.log('train_loss', loss)
-        return {'loss': loss, 'accuracy': acc}
+        self.log('train_loss', loss, on_epoch=True, prog_bar=True)
+        self.log('train_accuracy', accuracy, on_epoch=True, prog_bar=True)
+        return {'loss': loss, 'accuracy': accuracy}
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
@@ -32,11 +32,11 @@ class ResNetClassifier(pl.LightningModule):
         loss = nn.CrossEntropyLoss()(logits, y)
 
         preds = torch.argmax(logits, dim=1)
-        acc = (preds == y).float().mean()
+        accuracy = (preds == y).float().mean()
 
-        self.log('val_accuracy', acc, prog_bar=True, on_step=False, on_epoch=True)
-        self.log('val_loss', loss)
-        return {'val_loss': loss, 'val_accuracy': acc}
+        self.log('val_accuracy', accuracy, on_epoch=True, prog_bar=True)
+        self.log('val_loss', loss, on_epoch=True, prog_bar=True)
+        return {'val_loss': loss, 'val_accuracy': accuracy}
 
     def configure_optimizers(self):
         optimizer = optim.Adam(self.parameters(), lr=self.learning_rate)

@@ -96,6 +96,7 @@ class VGG16_HCNN(L.LightningModule):
 
         # Compute accuracy
         accuracy = accuracy_fn(fine, labels_arr)
+        
         self.log('train_loss', loss, on_epoch=True, prog_bar=True)
         self.log('train_accuracy', accuracy, on_epoch=True, prog_bar=True)
         return {'loss': loss, 'accuracy': accuracy}

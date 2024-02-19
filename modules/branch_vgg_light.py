@@ -293,8 +293,8 @@ class BranchVGG16(L.LightningModule):
         if BRANCH_SELECTOR == 'learnable':
             loss += self.regularize()
 
-        self.log('train_loss', loss, prog_bar=True, on_epoch=True)
-        self.log('train_accuracy', accuracy, prog_bar=True, on_epoch=True)
+        self.log('train_loss', loss, on_epoch=True, prog_bar=True)
+        self.log('train_accuracy', accuracy, on_epoch=True, prog_bar=True)
         return {'loss': loss, 'accuracy': accuracy}
 
     def validation_step(self, val_batch, batch_idx):
@@ -312,6 +312,6 @@ class BranchVGG16(L.LightningModule):
         # Compute accuracy
         accuracy = accuracy_fn(fine, labels_arr)
 
-        self.log('val_loss', loss, prog_bar=True, on_epoch=True)
-        self.log('val_accuracy', accuracy, prog_bar=True, on_epoch=True)
+        self.log('val_loss', loss, on_epoch=True, prog_bar=True)
+        self.log('val_accuracy', accuracy, on_epoch=True, prog_bar=True)
         return {'val_loss': loss, 'val_accuracy': accuracy}
