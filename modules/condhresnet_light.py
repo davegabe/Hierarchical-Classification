@@ -288,7 +288,7 @@ class CondHResNet(pl.LightningModule):
         loss = loss_fn(self.weights, c1, c2, fine, labels_arr)
 
         # Compute accuracy
-        accuracy = accuracy_fn(fine, labels_arr)
+        accuracy = accuracy_fn(fine, labels_arr[-1])
 
         self.log('train_loss', loss, on_epoch=True, prog_bar=True)
         self.log('train_accuracy', accuracy, on_epoch=True, prog_bar=True)
@@ -307,7 +307,7 @@ class CondHResNet(pl.LightningModule):
         loss = loss_fn(self.weights, c1, c2, fine, labels_arr)
 
         # Compute accuracy
-        accuracy = accuracy_fn(fine, labels_arr)
+        accuracy = accuracy_fn(fine, labels_arr[-1])
 
         self.log('val_loss', loss, on_epoch=True, prog_bar=True)
         self.log('val_accuracy', accuracy, on_epoch=True, prog_bar=True)

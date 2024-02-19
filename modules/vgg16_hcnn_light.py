@@ -1,5 +1,6 @@
 import pytorch_lightning as L
 import torch
+import torch.optim as optim
 import torch.nn as nn
 from modules.utils import accuracy_fn, loss_fn
 from modules.vgg_light import *
@@ -79,7 +80,7 @@ class VGG16_HCNN(L.LightningModule):
         return c1, c2, fine
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
+        optimizer = optim.Adam(self.parameters(), lr=self.lr)
         return optimizer
 
     def training_step(self, train_batch, batch_idx):
@@ -95,8 +96,8 @@ class VGG16_HCNN(L.LightningModule):
         loss = loss_fn(self.weights, c1, c2, fine, labels_arr)
 
         # Compute accuracy
-        accuracy = accuracy_fn(fine, labels_arr)
-        
+        accuracy = accuracy_fn(fine, labels_arr[-1])
+
         self.log('train_loss', loss, on_epoch=True, prog_bar=True)
         self.log('train_accuracy', accuracy, on_epoch=True, prog_bar=True)
         return {'loss': loss, 'accuracy': accuracy}
@@ -114,7 +115,7 @@ class VGG16_HCNN(L.LightningModule):
         loss = loss_fn(self.weights, c1, c2, fine, labels_arr)
 
         # Compute accuracy
-        accuracy = accuracy_fn(fine, labels_arr)
+        accuracy = accuracy_fn(fine, labels_arr[-1])
 
         self.log('val_loss', loss, on_epoch=True, prog_bar=True)
         self.log('val_accuracy', accuracy, on_epoch=True, prog_bar=True)

@@ -22,17 +22,17 @@ def loss_fn(weights: list[float], c1: torch.Tensor, c2: torch.Tensor, fine: torc
     return loss_c1 + loss_c2 + loss_fine
 
 
-def accuracy_fn(fine: torch.Tensor, labels_arr: list[torch.Tensor]) -> torch.Tensor:
+def accuracy_fn(fine: torch.Tensor, true_fine: torch.Tensor) -> torch.Tensor:
     """
     Compute the accuracy of the fine classifier.
 
     Args:
         fine (Tensor): Output of the fine classifier.
-        labels_arr (list[Tensor]): List of labels for the three classifiers.
+        true_fine (Tensor): True labels for the fine classifier.
 
     Returns:
         Tensor: Accuracy value.
     """
-    fine_preds = torch.argmax(fine, dim=1)
-    fine_labels = torch.argmax(labels_arr[2], dim=1)
+    fine_preds = torch.argmax(fine, dim=1)  # Fine predictions
+    fine_labels = torch.argmax(true_fine, dim=1)  # Fine labels
     return torch.sum(fine_preds == fine_labels).float() / fine_preds.shape[0]

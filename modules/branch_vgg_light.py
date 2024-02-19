@@ -1,5 +1,6 @@
-import torch.nn as nn
 import torch
+import torch.optim as optim
+import torch.nn as nn
 import itertools
 from modules.utils import accuracy_fn, loss_fn
 from modules.vgg_light import Conv2dBlock, MaxPool2dBlock, Classifier
@@ -227,7 +228,7 @@ class BranchVGG16(L.LightningModule):
 
         # Select branch
         if PRIVILEGED and training:
-            branch_scores = self.branch_choices(c1_true)
+            branch_scores = self.branch_selector(c1_true)
         else:
             branch_scores = self.branch_selector(c1)
         max_indices = torch.argmax(branch_scores, dim=1)
@@ -271,24 +272,24 @@ class BranchVGG16(L.LightningModule):
         return self.branch_selector.regularize()
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
+        optimizer = optim.Adam(self.parameters(), lr=self.lr)
         return optimizer
 
     def training_step(self, train_batch, batch_idx):
         images, labels = train_batch
         labels_arr = [
-            labels[:, :self.n_classes[1]],
-            labels[:, self.n_classes[1]:self.n_classes[1]+self.n_classes[2]],
-            labels[:, self.n_classes[1]+self.n_classes[2]:]
+            labels[:, :self.n_classes[0]],
+            labels[:, self.n_classes[0]:self.n_classes[0]+self.n_classes[1]],
+            labels[:, self.n_classes[0]+self.n_classes[1]:]
         ]
-        c1_true = torch.tensor(labels_arr[2])  # To fix
+        c1_true = labels_arr[-1]
         c1, c2, fine = self(images, c1_true, training=True)
 
         # Compute loss
         loss = loss_fn(self.weights, c1, c2, fine, labels_arr)
 
         # Compute accuracy
-        accuracy = accuracy_fn(fine, labels_arr)
+        accuracy = accuracy_fn(fine, labels_arr[-1])
 
         if BRANCH_SELECTOR == 'learnable':
             loss += self.regularize()
@@ -310,7 +311,7 @@ class BranchVGG16(L.LightningModule):
         loss = loss_fn(self.weights, c1, c2, fine, labels_arr)
 
         # Compute accuracy
-        accuracy = accuracy_fn(fine, labels_arr)
+        accuracy = accuracy_fn(fine, labels_arr[-1])
 
         self.log('val_loss', loss, on_epoch=True, prog_bar=True)
         self.log('val_accuracy', accuracy, on_epoch=True, prog_bar=True)

@@ -102,8 +102,7 @@ class VGG16(L.LightningModule):
         )
 
         # Fine classifier
-        self.fine_size = 512 * 7 * 7
-        self.fine = Classifier(self.fine_size, n_classes)
+        self.fine = Classifier(512 * 7 * 7, n_classes)
 
         self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
 
@@ -143,10 +142,14 @@ class VGG16(L.LightningModule):
     def training_step(self, batch, batch_idx):
         images, labels = batch
         logits = self(images)
+
+        # Compute loss
         loss = F.cross_entropy(logits, labels)
+
+        # Compute accuracy
         correct = torch.sum(torch.argmax(logits, dim=1) == labels)
         accuracy = correct / logits.shape[0]
-        
+
         self.log('train_loss', loss, on_epoch=True, prog_bar=True)
         self.log('train_accuracy', accuracy, on_epoch=True, prog_bar=True)
         return {'loss': loss, 'accuracy': accuracy}
@@ -154,7 +157,11 @@ class VGG16(L.LightningModule):
     def validation_step(self, batch, batch_idx):
         images, labels = batch
         logits = self(images)
+
+        # Compute loss
         loss = F.cross_entropy(logits, labels)
+
+        # Compute accuracy
         correct = torch.sum(torch.argmax(logits, dim=1) == labels)
         accuracy = correct / logits.shape[0]
 

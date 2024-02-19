@@ -153,7 +153,7 @@ class HResNet(pl.LightningModule):
         images, labels = train_batch
         c1, c2, fine = self(images)
         labels_arr = [
-            labels[:, 0:c1.shape[1]],
+            labels[:, :c1.shape[1]],
             labels[:, c1.shape[1]:c1.shape[1]+c2.shape[1]],
             labels[:, c1.shape[1]+c2.shape[1]:]
         ]
@@ -162,7 +162,7 @@ class HResNet(pl.LightningModule):
         loss = loss_fn(self.weights, c1, c2, fine, labels_arr)
 
         # Compute accuracy
-        accuracy = accuracy_fn(fine, labels_arr)
+        accuracy = accuracy_fn(fine, labels_arr[-1])
 
         self.log('train_loss', loss, on_epoch=True, prog_bar=True)
         self.log('train_accuracy', accuracy, on_epoch=True, prog_bar=True)
@@ -181,7 +181,7 @@ class HResNet(pl.LightningModule):
         loss = loss_fn(self.weights, c1, c2, fine, labels_arr)
 
         # Compute accuracy
-        accuracy = accuracy_fn(fine, labels_arr)
+        accuracy = accuracy_fn(fine, labels_arr[-1])
 
         self.log('val_loss', loss, on_epoch=True, prog_bar=True)
         self.log('val_accuracy', accuracy, on_epoch=True, prog_bar=True)
