@@ -1,6 +1,7 @@
 import torch
 import pytorch_lightning as L
 from pytorch_lightning.loggers import WandbLogger, TensorBoardLogger
+from modules.branch_resnet import BranchResNet
 from modules.condhresnet_light import CondHResNet
 from modules.vgg11_hcnn_light import VGG11_HCNN
 from modules.vgg_light import VGG16
@@ -16,17 +17,18 @@ import numpy as np
 from pytorch_lightning.callbacks import LearningRateFinder, EarlyStopping, RichProgressBar
 from torchinfo import summary
 import nltk
-torch.random.manual_seed(42)
-np.random.seed(42)
-random.seed(42)
 
-torch.set_float32_matmul_precision('medium')
 
-if __name__ == "__main__":
+def main():
+    # Set random seeds for reproducibility
+    random_state = 42
+    torch.random.manual_seed(random_state)
+    np.random.seed(random_state)
+    random.seed(random_state)
+    torch.set_float32_matmul_precision('medium')
+
     # Download the WordNet package
     nltk.download('wordnet')
-
-    random_state = 42
 
     only_leaves = MODEL_NAME == 'vgg16' or MODEL_NAME == 'resnet'
     train_dataset = HierarchicalImageNet(split=TRAIN_DATASET_PATH, only_leaves=only_leaves, random_state=random_state)
@@ -42,7 +44,6 @@ if __name__ == "__main__":
         wandb_logger = WandbLogger(project="hierarchical-classification")
         wandb_logger.experiment.config.update({
             "model": MODEL_NAME,
-            "branch_selector": BRANCH_SELECTOR if MODEL_NAME == "branch_vgg16" else None,
             "n_branches": N_BRANCHES,
             "learning_rate": LEARNING_RATE,
             "num_epochs": NUM_EPOCHS,
@@ -83,5 +84,11 @@ if __name__ == "__main__":
             model = HResNet(num_classes=train_dataset.hierarchy_size, learning_rate=LEARNING_RATE)
         elif MODEL_NAME == 'condhresnet':
             model = CondHResNet(num_classes=train_dataset.hierarchy_size, learning_rate=LEARNING_RATE)
+        elif MODEL_NAME == 'branch_resnet':
+            model = BranchResNet(num_classes=train_dataset.hierarchy_size, n_branches=N_BRANCHES, learning_rate=LEARNING_RATE)
 
     trainer.fit(model, train_loader, val_loader)
+
+
+if __name__ == "__main__":
+    main()

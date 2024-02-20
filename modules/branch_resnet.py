@@ -57,9 +57,9 @@ class BranchResNet(pl.LightningModule):
     def __init__(
         self,
         n_branches: int,
+        num_classes: list[int],
         block=Bottleneck,
         layers=[3, 4, 6, 3],
-        num_classes: list[int] = 1000,
         learning_rate: float = 1e-3,
         zero_init_residual: bool = False,
         groups: int = 1,
@@ -104,12 +104,19 @@ class BranchResNet(pl.LightningModule):
         self.fc = nn.Linear(self.fine_size, num_classes[2])
 
         # Branches
-        self.branches = nn.ModuleList([
-            Branch(
-                self._make_layer(block, 256, layers[2], stride=2, dilate=replace_stride_with_dilation[1]),
-                self._make_layer(block, 512, layers[3], stride=2, dilate=replace_stride_with_dilation[2])
-            ) for _ in range(n_branches)
-        ])
+        self.branches = nn.ModuleList([])
+        for i in range(n_branches):
+            dil = self.dilation
+            inpl = self.inplanes
+            self.branches.append(
+                Branch(
+                    self._make_layer(block, 256, layers[2], stride=2, dilate=replace_stride_with_dilation[1]),
+                    self._make_layer(block, 512, layers[3], stride=2, dilate=replace_stride_with_dilation[2])
+                )
+            )
+            self.dilation = dil
+            self.inplanes = inpl
+
         
         # Branch selector
         self.coarse_classifier = CoarseBlock(512 * 16 * 16, num_classes[0] + num_classes[1])
@@ -200,6 +207,7 @@ class BranchResNet(pl.LightningModule):
         # Apply selected branch
         results = []
         for i in range(x.shape[0]):
+            # i-th sample goes to max_index-th branch
             max_index = max_indices[i]
             x_i = x[i].unsqueeze(0)
             results.append(self.branches[max_index](x_i))
@@ -242,7 +250,7 @@ class BranchResNet(pl.LightningModule):
         images, labels = val_batch
         c1, c2, fine = self(images)
         labels_arr = [
-            labels[:, 0:c1.shape[1]],
+            labels[:, :c1.shape[1]],
             labels[:, c1.shape[1]:c1.shape[1]+c2.shape[1]],
             labels[:, c1.shape[1]+c2.shape[1]:]
         ]
