@@ -1,5 +1,6 @@
 import torch
 import pytorch_lightning as L
+from pytorch_lightning.loggers import WandbLogger, TensorBoardLogger
 from modules.condhresnet_light import CondHResNet
 from modules.vgg11_hcnn_light import VGG11_HCNN
 from modules.vgg_light import VGG16
@@ -11,7 +12,6 @@ from modules.hresnet_light import HResNet
 from torch.utils.data import DataLoader
 from config import *
 import random
-import wandb
 import numpy as np
 from pytorch_lightning.callbacks import LearningRateFinder, EarlyStopping, RichProgressBar
 from torchinfo import summary
@@ -34,25 +34,24 @@ if __name__ == "__main__":
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4, persistent_workers=True)
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, num_workers=4, persistent_workers=True)
 
+    # Loggers
+    loggers = [
+        TensorBoardLogger("models/lightning_logs", name=MODEL_NAME)
+    ]
     if USE_WANDB:
-        # WandB
-        wandb.init(
-            project="hierarchical-classification",
-            config={
-                "model": MODEL_NAME,
-                "branch_selector": BRANCH_SELECTOR if MODEL_NAME == "branch_vgg16" else None,
-                "n_branches": N_BRANCHES,
-                "learning_rate": LEARNING_RATE,
-                "num_epochs": NUM_EPOCHS,
-                "batch_size": BATCH_SIZE,
-                "limit_classes": LIMIT_CLASSES,
-                "image_size": IMAGE_SIZE,
-                # "loss_weights": loss.weights if MODEL_NAME=='branch_vgg16' else None
-            }
-        )
-
-    loggers = [L.loggers.WandbLogger(project="hierarchical-classification"),
-               L.loggers.TensorBoardLogger("models/lightning_logs", name=MODEL_NAME)]
+        wandb_logger = WandbLogger(project="hierarchical-classification")
+        wandb_logger.experiment.config.update({
+            "model": MODEL_NAME,
+            "branch_selector": BRANCH_SELECTOR if MODEL_NAME == "branch_vgg16" else None,
+            "n_branches": N_BRANCHES,
+            "learning_rate": LEARNING_RATE,
+            "num_epochs": NUM_EPOCHS,
+            "batch_size": BATCH_SIZE,
+            "limit_classes": LIMIT_CLASSES,
+            "image_size": IMAGE_SIZE,
+            # "loss_weights": loss.weights if MODEL_NAME=='branch_vgg16' else None
+        })
+        loggers += [wandb_logger]
 
     trainer = L.Trainer(
         logger=loggers,
