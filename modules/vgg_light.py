@@ -60,6 +60,7 @@ class VGG16(L.LightningModule):
             n_classes (int): Number of classes.
         """
         super().__init__()
+        self.save_hyperparameters()
 
         self.lr = lr
 
@@ -136,7 +137,7 @@ class VGG16(L.LightningModule):
         return fine
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
+        optimizer = torch.optim.SGD(self.parameters(), lr=self.lr, momentum=0.9)
         return optimizer
 
     def training_step(self, batch, batch_idx):

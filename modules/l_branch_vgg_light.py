@@ -1,21 +1,29 @@
 import torch
 import torch.optim as optim
 import torch.nn as nn
+import itertools
 from modules.utils import accuracy_fn, loss_fn
 from modules.vgg_light import Conv2dBlock, MaxPool2dBlock, Classifier
-from config import PRIVILEGED
+from config import BRANCH_SELECTOR, L1_REGULARIZATION, SIMILARITY_REGULARIZATION, LOG_STEP, PRIVILEGED
+import wandb
 import pytorch_lightning as L
 
-class NonLearnableBranchSelector(nn.Module):
-    def __init__(self, n_branches: int):
+
+class BranchSelector(nn.Module):
+    def __init__(self, n_classes: int, n_branches: int):
         """
-        Non-learnable branch selector.
+        Learnable branch selector.
 
         Args:
+            n_classes (int): Number of classes.
             n_branches (int): Number of branches.
         """
-        super(NonLearnableBranchSelector, self).__init__()
+        super(BranchSelector, self).__init__()
+        self.n_classes = n_classes
         self.n_branches = n_branches
+        self.linear = nn.Linear(n_classes, n_branches)
+        self.activation = nn.Sigmoid()
+        print(f"BranchSelector: {n_classes} -> {n_branches} branches")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -27,15 +35,36 @@ class NonLearnableBranchSelector(nn.Module):
         Returns:
             torch.Tensor: Output tensor.
         """
-        # Initialize branch scores
-        branch_scores = torch.zeros(x.shape[0], self.n_branches)
-        # Compute the sum of the splits
-        split = x.shape[1] // self.n_branches
-        for i in range(self.n_branches):
-            start = i * split
-            end = max((i + 1) * split, x.shape[1])
-            branch_scores[:, i] = torch.sum(x[:, start:end], dim=1)
-        return branch_scores
+        x = self.linear(x)
+        x = self.activation(x)
+        return x
+
+    def regularize(self) -> torch.Tensor:
+        """
+        Compute L1 loss on the rows of the weight matrix and similiarity loss on the rows of the weight matrix.
+        This encourages the model to use different branches for different classes.
+
+
+        Returns:
+            torch.Tensor: L1 loss.
+        """
+        device = self.linear.weight.device
+        l1 = torch.tensor(0.).to(device)
+        sim = torch.tensor(0.).to(device)
+        weights = self.linear.weight
+
+        # For each output neuron, compute the L1 norm of the weights and the similarity loss
+        for i, param in enumerate(weights):
+            l1 += torch.norm(param, 1)
+
+        # Compute combination of weights to check similarity
+        indexes = [i for i in range(self.n_branches)]
+        combinations = list(itertools.combinations(indexes, 2))
+        # # Compute similarity loss
+        # for i, j in combinations:
+        #     sim += F.cosine_similarity(weights[i], weights[j])
+
+        return l1 * L1_REGULARIZATION + sim * SIMILARITY_REGULARIZATION
 
 
 class Branch(nn.Module):
@@ -124,7 +153,9 @@ class BranchVGG16(L.LightningModule):
             nn.Dropout(),
             nn.Linear(1024, n_classes[0] + n_classes[1])
         )
-        self.branch_selector = NonLearnableBranchSelector(n_branches)
+        self.branch_selector = BranchSelector(
+            n_classes[0], n_branches
+        )
 
         self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
 
@@ -181,6 +212,16 @@ class BranchVGG16(L.LightningModule):
         # Flatten and apply classifiers
         fine = self.fine(x)
 
+        # log steps
+        if self.step % LOG_STEP == 0:
+            # Log the branch selector weights for each output node
+            weight_matrix = self.branch_selector.linear.weight.detach().cpu().numpy()
+            for i, param in enumerate(weight_matrix):
+                self.log({
+                    f"bs_{i + 1}_weights": wandb.Histogram(param)
+                }, step=self.step)
+        self.step += 1
+
         # Concatenate coarse and fine predictions
         return c1, c2, fine
 
@@ -212,6 +253,9 @@ class BranchVGG16(L.LightningModule):
 
         # Compute accuracy
         accuracy = accuracy_fn(fine, labels_arr[-1])
+
+        # Regularize
+        loss += self.regularize()
 
         self.log('train_loss', loss, on_epoch=True, prog_bar=True)
         self.log('train_accuracy', accuracy, on_epoch=True, prog_bar=True)
