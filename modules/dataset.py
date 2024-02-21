@@ -85,7 +85,7 @@ class HierarchicalImageNet(Dataset):
 
     def get_hierarchy(self) -> pd.DataFrame:
         # Read the hierarchy
-        hierarchy = pd.read_csv("hierarchy.csv")
+        hierarchy = pd.read_csv("dataset/hierarchy.csv")
         # Sample random rows
         hierarchy = hierarchy.sample(n=LIMIT_CLASSES, random_state=self.random_state).reset_index(drop=True)
         return hierarchy

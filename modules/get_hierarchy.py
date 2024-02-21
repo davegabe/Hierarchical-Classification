@@ -60,4 +60,4 @@ for anchestor, descendant in descendants.items():
 
 
 hierarchy = pd.DataFrame(hierarchy, columns=['lv1', 'lv2', 'fine'])
-hierarchy.to_csv('hierarchy.csv', index=False, header=False)
+hierarchy.to_csv('dataset/hierarchy.csv', index=False, header=False)

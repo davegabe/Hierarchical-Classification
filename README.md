@@ -29,6 +29,8 @@ dataset/
         n01440766/ # e.g. synset
             n01440766_10026.JPEG # e.g. image
             ...
+    hierarchy.csv
+    val_mapping.csv
 ```
 
 ## Training

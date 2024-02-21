@@ -3,7 +3,7 @@ import pandas as pd
 from config import VAL_DATASET_PATH
 
 
-csv = "val_mapping.csv"
+csv = "dataset/val_mapping.csv"
 data = pd.read_csv(csv)
 
 
