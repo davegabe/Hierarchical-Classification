@@ -5,8 +5,9 @@ numpy
 matplotlib
 pandas
 nltk
-torchinfo
 pytorch_lightning
 pytorch_lightning[extra]
 rich
 wandb
+robustness
+pyarrow
