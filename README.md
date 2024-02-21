@@ -11,7 +11,7 @@ Download the data from [here](https://image-net.org/challenges/LSVRC/2012/2012-d
 
 Now you can run the `xml_extractor.py` to correctly organize the validation data:
 ```
-python -m moduels.xml_extractor
+python -m moduels.utils.xml_extractor
 ```
 
 Now you should have the following folder structure:
@@ -34,7 +34,7 @@ dataset/
 ```
 
 ## Training
-To train the model, run the `run_l.py` file:
+To train the model, run the `run.py` file:
 ```
-python run_l.py
+python run.py
 ```

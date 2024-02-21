@@ -3,8 +3,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torchvision.models.resnet import Bottleneck, BasicBlock, conv1x1
 import pytorch_lightning as pl
-from modules.hresnet_light import CoarseBlock
-from modules.utils import accuracy_fn, loss_fn
+from modules.models.hresnet import CoarseBlock
+from modules.utils.metrics import accuracy_fn, loss_fn
 from config import PRIVILEGED
 
 class NonLearnableBranchSelector(nn.Module):

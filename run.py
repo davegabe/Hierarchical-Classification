@@ -1,15 +1,14 @@
 import torch
 import pytorch_lightning as L
 from pytorch_lightning.loggers import WandbLogger, TensorBoardLogger
-from modules.branch_resnet import BranchResNet
-from modules.condhresnet_light import CondHResNet
-from modules.vgg11_hcnn_light import VGG11_HCNN
-from modules.vgg_light import VGG16
-from modules.vgg16_hcnn_light import VGG16_HCNN
-from modules.branch_vgg_light import BranchVGG16
-from modules.dataset import HierarchicalImageNet
-from modules.resnet_light import ResNetClassifier
-from modules.hresnet_light import HResNet
+from modules.models.branch_resnet import BranchResNet
+from modules.models.condhresnet import CondHResNet
+from modules.models.vgg11_hcnn import VGG11_HCNN
+from modules.models.vgg16 import VGG16
+from modules.models.vgg16_hcnn import VGG16_HCNN
+from modules.models.resnet import ResNetClassifier
+from modules.models.hresnet import HResNet
+from modules.utils.dataset import HierarchicalImageNet
 from torch.utils.data import DataLoader
 from config import *
 import random
@@ -20,6 +19,11 @@ import wandb
 
 
 def main():
+    # Print the model name
+    print("#" * 80)
+    print(f"Training {MODEL_NAME}")
+    print("#" * 80)
+    
     # Set random seeds for reproducibility
     random_state = 42
     torch.random.manual_seed(random_state)
@@ -76,8 +80,6 @@ def main():
             model = VGG16(n_classes=train_dataset.hierarchy_size[-1], lr=LEARNING_RATE)
         elif MODEL_NAME == "vgg16_hcnn":
             model = VGG16_HCNN(n_classes=train_dataset.hierarchy_size, lr=LEARNING_RATE)
-        elif MODEL_NAME == "branch_vgg16":
-            model = BranchVGG16(n_classes=train_dataset.hierarchy_size, n_branches=N_BRANCHES, eps=0, lr=LEARNING_RATE)
         elif MODEL_NAME == "resnet":
             model = ResNetClassifier(num_classes=train_dataset.hierarchy_size[-1], learning_rate=LEARNING_RATE)
         elif MODEL_NAME == "hresnet":
@@ -101,4 +103,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if MODEL_NAME == "all":
+        # If MODEL_NAME is "all", train all models
+        for model in ALL_MODELS:
+            MODEL_NAME = model
+            main()
+    else:
+        # Train the specified model
+        main()

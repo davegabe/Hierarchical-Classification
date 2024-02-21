@@ -2,8 +2,8 @@ import pytorch_lightning as L
 import torch
 import torch.optim as optim
 import torch.nn as nn
-from modules.utils import accuracy_fn, loss_fn
-from modules.vgg_light import *
+from modules.utils.metrics import accuracy_fn, loss_fn
+from modules.models.vgg16 import *
 from config import *
 
 
@@ -20,25 +20,29 @@ class CoarseBlock(nn.Module):
         return x
 
 
-class VGG11_HCNN(L.LightningModule):
+class VGG16_HCNN(L.LightningModule):
     def __init__(self, n_classes, lr=1e-3) -> None:
         super().__init__()
         self.save_hyperparameters()
+
         self.lr = lr
         self.weights = [0.8, 0.1, 0.1]
 
         self.block1 = nn.Sequential(
             Conv2dBlock(3, 64, batch_norm=True),
+            Conv2dBlock(64, 64, batch_norm=True),
             MaxPool2dBlock()
         )
 
         self.block2 = nn.Sequential(
             Conv2dBlock(64, 128, batch_norm=True),
+            Conv2dBlock(128, 128, batch_norm=True),
             MaxPool2dBlock()
         )
 
         self.block3 = nn.Sequential(
             Conv2dBlock(128, 256, batch_norm=True),
+            Conv2dBlock(256, 256, batch_norm=True),
             Conv2dBlock(256, 256, batch_norm=True),
             MaxPool2dBlock()
         )
@@ -46,10 +50,12 @@ class VGG11_HCNN(L.LightningModule):
         self.block4 = nn.Sequential(
             Conv2dBlock(256, 512, batch_norm=True),
             Conv2dBlock(512, 512, batch_norm=True),
+            Conv2dBlock(512, 512, batch_norm=True),
             MaxPool2dBlock()
         )
 
         self.block5 = nn.Sequential(
+            Conv2dBlock(512, 512, batch_norm=True),
             Conv2dBlock(512, 512, batch_norm=True),
             Conv2dBlock(512, 512, batch_norm=True),
             MaxPool2dBlock()

@@ -2,7 +2,7 @@ import pytorch_lightning as L
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from modules.vgg_light import *
+from modules.models.vgg16 import *
 from config import *
 
 

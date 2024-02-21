@@ -1,5 +1,7 @@
+ALL_MODELS = ["vgg11_hcnn", "vgg16", "vgg16_hcnn", "resnet", "hresnet", "condhresnet", "branch_resnet"]
+
 # Training parameters
-MODEL_NAME = "branch_resnet"  # "vgg16" or "vgg16_hcnn" or "vgg11_hcnn" or "resnet" or "hresnet" or "condhresnet" or "branch_resnet"
+MODEL_NAME = "all"  # "vgg11_hcnn" or "vgg16" or "resnet" or "hresnet" or "condhresnet" or "branch_resnet" or "all"
 N_BRANCHES = 3
 LEARNING_RATE = 3.311311214825912e-05
 PRIVILEGED = True

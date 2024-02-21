@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import pytorch_lightning as pl
-from modules.condconv import CondConv2D
-from modules.utils import accuracy_fn, loss_fn
+from modules.models.condconv import CondConv2D
+from modules.utils.metrics import accuracy_fn, loss_fn
 
 
 def conv3x3(in_planes: int, out_planes: int, stride: int = 1, groups: int = 1, dilation: int = 1) -> nn.Conv2d:
