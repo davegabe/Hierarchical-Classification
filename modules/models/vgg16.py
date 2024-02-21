@@ -1,6 +1,8 @@
+import pytorch_lightning as L
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch
+from modules.models.vgg16 import *
 from config import *
 
 
@@ -49,15 +51,18 @@ class MaxPool2dBlock(nn.Module):
         return self.maxpool(x)
 
 
-class VGG16(nn.Module):
-    def __init__(self, n_classes: int):
+class VGG16(L.LightningModule):
+    def __init__(self, n_classes: int, lr=1e-3):
         """
         VGG16 model architecture.
 
         Args:
             n_classes (int): Number of classes.
         """
-        super(VGG16, self).__init__()
+        super().__init__()
+        self.save_hyperparameters()
+
+        self.lr = lr
 
         # Block 1
         self.block_1 = nn.Sequential(
@@ -98,8 +103,7 @@ class VGG16(nn.Module):
         )
 
         # Fine classifier
-        self.fine_size = 512 * 7 * 7
-        self.fine = Classifier(self.fine_size, n_classes)
+        self.fine = Classifier(512 * 7 * 7, n_classes)
 
         self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
 
@@ -124,7 +128,44 @@ class VGG16(nn.Module):
         x = self.block_4(x)
         x = self.block_5(x)
 
+        # Apply average pooling
+        x = self.avgpool(x)
+
         # Flatten and apply classifier
         fine = self.fine(x)
 
         return fine
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.SGD(self.parameters(), lr=self.lr, momentum=0.9)
+        return optimizer
+
+    def training_step(self, batch, batch_idx):
+        images, labels = batch
+        logits = self(images)
+
+        # Compute loss
+        loss = F.cross_entropy(logits, labels)
+
+        # Compute accuracy
+        correct = torch.sum(torch.argmax(logits, dim=1) == labels)
+        accuracy = correct / logits.shape[0]
+
+        self.log('train_loss', loss, on_epoch=True, prog_bar=True)
+        self.log('train_accuracy', accuracy, on_epoch=True, prog_bar=True)
+        return {'loss': loss, 'accuracy': accuracy}
+
+    def validation_step(self, batch, batch_idx):
+        images, labels = batch
+        logits = self(images)
+
+        # Compute loss
+        loss = F.cross_entropy(logits, labels)
+
+        # Compute accuracy
+        correct = torch.sum(torch.argmax(logits, dim=1) == labels)
+        accuracy = correct / logits.shape[0]
+
+        self.log('val_loss', loss, on_epoch=True, prog_bar=True)
+        self.log('val_accuracy', accuracy, on_epoch=True, prog_bar=True)
+        return {'val_loss': loss, 'val_accuracy': accuracy}

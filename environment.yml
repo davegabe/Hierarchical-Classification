@@ -7,3 +7,11 @@ dependencies:
   - torchvision
   - pandas
   - nltk
+  - pip
+  - pytorch_lightning
+  - rich
+  - pip:
+      - wandb
+      - robustness
+      - rich
+      - pyarrow

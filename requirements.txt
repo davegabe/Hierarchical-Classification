@@ -5,3 +5,9 @@ numpy
 matplotlib
 pandas
 nltk
+pytorch_lightning
+pytorch_lightning[extra]
+rich
+wandb
+robustness
+pyarrow
