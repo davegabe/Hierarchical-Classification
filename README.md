@@ -26,9 +26,9 @@ conda env create -f environment.yml
 ## Dataset
 Download the data from [here](https://image-net.org/challenges/LSVRC/2012/2012-downloads.php) and extract it to the `dataset/` folder.
 
-Now you can run the `xml_extractor.py` to correctly organize the validation data:
+Now you can run the `val2train_mapping.py` to correctly organize the validation data:
 ```
-python -m moduels.utils.xml_extractor
+python -m moduels.utils.val2train_mapping.py
 ```
 
 Now you should have the following folder structure:
