@@ -15,8 +15,8 @@ from config import *
 import random
 import numpy as np
 from pytorch_lightning.callbacks import LearningRateFinder, EarlyStopping, RichProgressBar
-from torchinfo import summary
 import nltk
+import wandb
 
 
 def main():
@@ -87,7 +87,17 @@ def main():
         elif MODEL_NAME == 'branch_resnet':
             model = BranchResNet(num_classes=train_dataset.hierarchy_size, n_branches=N_BRANCHES, learning_rate=LEARNING_RATE)
 
+    # Train the model
     trainer.fit(model, train_loader, val_loader)
+
+    # Close the loggers
+    for logger in loggers:
+        logger.finalize("success")
+        if isinstance(logger, WandbLogger):
+            wandb.finish()
+
+    # Save the model
+    trainer.save_checkpoint(f"models/{MODEL_NAME}_{NUM_EPOCHS}.ckpt")
 
 
 if __name__ == "__main__":
