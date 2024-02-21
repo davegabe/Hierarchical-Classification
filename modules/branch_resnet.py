@@ -233,7 +233,7 @@ class BranchResNet(pl.LightningModule):
             labels[:, self.num_classes[0]:self.num_classes[0]+self.num_classes[1]],
             labels[:, self.num_classes[0]+self.num_classes[1]:]
         ]
-        c1_true = labels_arr[-1]
+        c1_true = labels_arr[0]
         c1, c2, fine = self(images, c1_true, training=True)
 
         # Compute loss
