@@ -115,9 +115,3 @@ class HierarchicalImageNet(Dataset):
                 imagenet.append((image_path, class_name))
 
         return imagenet
-
-
-if __name__ == "__main__":
-    dataset = HierarchicalImageNet("/run/media/riccardo/ea24b431-b1e5-4ec3-95b0-fcbaf83641fb/ImageNet/train")
-    # print(dataset.get_depth_class_to_index())
-    # print(dataset.hierarchy)[]

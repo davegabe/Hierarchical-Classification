@@ -1,8 +1,8 @@
 import os
 import pandas as pd
+from config import VAL_DATASET_PATH
 
 
-val_path = "ILSVRC2012_img_val"
 csv = "val_mapping.csv"
 data = pd.read_csv(csv)
 
@@ -13,8 +13,8 @@ for row in data.iterrows():
     object = row[1][1]
 
     # Source and destination paths
-    source = os.path.join(val_path, filename+".JPEG")
-    path = os.path.join(val_path, object)
+    source = os.path.join(VAL_DATASET_PATH, filename+".JPEG")
+    path = os.path.join(VAL_DATASET_PATH, object)
     destination = os.path.join(path, filename+".JPEG")
 
     # Create the folder if it does not exist

@@ -7,8 +7,7 @@ from robustness.tools.imagenet_helpers import ImageNetHierarchy
 
 nltk.download('wordnet')
 
-in_hier = ImageNetHierarchy("/run/media/riccardo/ea24b431-b1e5-4ec3-95b0-fcbaf83641fb/ImageNet/",
-                            '/run/media/riccardo/ea24b431-b1e5-4ec3-95b0-fcbaf83641fb/ImageNet/info')
+in_hier = ImageNetHierarchy("dataset/ImageNet/", 'dataset/ImageNet/info')
 
 
 wn_names = ['animal', 'device', 'conveyance', 'implement', 'container',
@@ -32,8 +31,7 @@ for ancestor_id in wn_ids:
 
 print(sums)
 
-classes = os.listdir(
-    '/run/media/riccardo/ea24b431-b1e5-4ec3-95b0-fcbaf83641fb/ImageNet/train')
+classes = os.listdir(TRAIN_DATASET_PATH)
 
 # descnds = []
 # for k,v in descendants.items():
