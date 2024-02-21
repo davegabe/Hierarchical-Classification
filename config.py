@@ -3,11 +3,8 @@ MODEL_NAME = "branch_resnet"  # "vgg16" or "vgg16_hcnn" or "vgg11_hcnn" or "resn
 N_BRANCHES = 3
 LEARNING_RATE = 3.311311214825912e-05
 PRIVILEGED = True
-NUM_EPOCHS = 1
-
+NUM_EPOCHS = 50
 USE_WANDB = True
-LOG_STEP = 1
-VAL_EPOCHS = 5
 BATCH_SIZE = 64
 
 # Dataset parameters
